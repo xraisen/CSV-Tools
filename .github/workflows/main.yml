@@ -1,5 +1,9 @@
 name: Build CSV Tools (Windows & macOS)
 
+permissions:
+  contents: write
+  actions: read
+
 on:
   push:
     tags:
@@ -74,36 +78,35 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 🐛 Debug Trigger Context
-        run: |
-          echo "github.ref: ${{ github.ref }}"
-          echo "github.event_name: ${{ github.event_name }}"
-
       - name: ⬇️ Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: csv-tools-windows-latest  # Match build job exactly
+          name: csv-tools-windows-latest
           path: releases/windows
 
       - name: ⬇️ Download macOS Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: csv-tools-macos-latest  # Match build job exactly
+          name: csv-tools-macos-latest
           path: releases/macos
 
       - name: 📋 Debug Downloaded Files
         run: |
           echo "Windows artifacts:"
-          ls -la releases/windows/ || echo "No files found"
+          ls -la releases/windows/windows/ || echo "No Windows files found"
           echo "macOS artifacts:"
-          ls -la releases/macos/ || echo "No files found"
+          ls -la releases/macos/macos/ || echo "No macOS files found"
+          if [ -z "$(ls -A releases/windows/windows)" ] || [ -z "$(ls -A releases/macos/macos)" ]; then
+            echo "Error: One or both artifact directories are empty"
+            exit 1
+          fi
 
       - name: 📦 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            releases/windows/*
-            releases/macos/*
+            releases/windows/windows/*
+            releases/macos/macos/*
           tag_name: ${{ github.ref_name }}
           name: CSV Tools ${{ github.ref_name }}
           body: |
@@ -119,4 +122,4 @@ jobs:
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
