@@ -15,12 +15,12 @@ VSVersionInfo(
       [
       StringTable(
         '040904b0',
-        [StringStruct('CompanyName', 'Your Company'),
-        StringStruct('FileDescription', 'CSV Processing Tool'),
+        [StringStruct('CompanyName', 'AE1O1'),
+        StringStruct('FileDescription', 'CSV Processing Tools'),
         StringStruct('FileVersion', '1.0.0'),
-        StringStruct('InternalName', 'csvtool'),
-        StringStruct('LegalCopyright', '© Your Company. All rights reserved.'),
-        StringStruct('OriginalFilename', '${{ matrix.script }}.exe'),
+        StringStruct('InternalName', 'csvtools'),
+        StringStruct('LegalCopyright', '© AE1O1. All rights reserved.'),
+        StringStruct('OriginalFilename', 'csvprocessor.exe'),
         StringStruct('ProductName', 'CSV Tools'),
         StringStruct('ProductVersion', '1.0.0')])
       ]),

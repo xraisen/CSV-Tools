@@ -1,6 +1,9 @@
 name: Build Cross-Platform Executables
 
-on: [push, workflow_dispatch]
+on: 
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -8,6 +11,13 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
         script: [csvprocessor, csvsplitter]
+        include:
+          - os: windows-latest
+            icon_ext: ico
+            icon_path: icons/app.ico
+          - os: macos-latest
+            icon_ext: icns
+            icon_path: icons/app.icns
     runs-on: ${{ matrix.os }}
     
     steps:
@@ -25,15 +35,24 @@ jobs:
     
     - name: Build executable
       run: |
-        # Windows specific commands
+        # Windows build
         if [[ "${{ runner.os }}" == "Windows" ]]; then
-          pyinstaller --onefile --name ${{ matrix.script }}_windows ${{ matrix.script }}.py
+          pyinstaller --onefile \
+                      --name ${{ matrix.script }}_windows \
+                      --icon ${{ matrix.icon_path }} \
+                      --version-file version_info.txt \
+                      --noconsole \
+                      ${{ matrix.script }}.py
           cp dist/${{ matrix.script }}_windows.exe ${{ matrix.script }}_windows.exe
         fi
         
-        # macOS specific commands
+        # macOS build
         if [[ "${{ runner.os }}" == "macOS" ]]; then
-          pyinstaller --onefile --name ${{ matrix.script }}_macos ${{ matrix.script }}.py
+          pyinstaller --onefile \
+                      --name ${{ matrix.script }}_macos \
+                      --icon ${{ matrix.icon_path }} \
+                      --noconsole \
+                      ${{ matrix.script }}.py
           cp dist/${{ matrix.script }}_macos ${{ matrix.script }}_macos
           chmod +x ${{ matrix.script }}_macos
         fi
@@ -46,3 +65,11 @@ jobs:
           ${{ matrix.script }}_windows.exe
           ${{ matrix.script }}_macos
         if-no-files-found: error
+    
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ${{ matrix.script }}_windows.exe
+          ${{ matrix.script }}_macos
