@@ -10,8 +10,6 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   BUILD_DIR: 'dist'
-  ICON_WIN: 'icons/app.ico'
-  ICON_MAC: 'icons/app.icns'
 
 jobs:
   build:
@@ -25,11 +23,11 @@ jobs:
             desc: "CSV Splitter Tool"
         include:
           - os: windows-latest
-            icon: ${{ env.ICON_WIN }}
+            icon: icons/app.ico  # Direct path instead of env var
             ext: exe
             args: --version-file version_info.txt --noconsole
           - os: macos-latest
-            icon: ${{ env.ICON_MAC }}
+            icon: icons/app.icns  # Direct path instead of env var
             ext: ''
             args: --noconsole
 
@@ -103,7 +101,6 @@ jobs:
         prerelease: false
         generate_release_notes: true
 
-  # Additional quality checks
   lint:
     runs-on: ubuntu-latest
     steps:
