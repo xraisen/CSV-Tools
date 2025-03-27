@@ -30,16 +30,22 @@ jobs:
 
       - name: 🎨 Set Icon Path
         run: |
-          ICON_PATH="icons/app.ico"
           if [ "$RUNNER_OS" == "macOS" ]; then
+            ICON_PATH="icons/app.icns"
+          else
+            ICON_PATH="icons/app.ico"
           fi
           echo "ICON_PATH=$ICON_PATH" >> $GITHUB_ENV
 
       - name: 🏗️ Build CSV Tools
         run: |
           for name in csvprocessor csvsplitter; do
-            pyinstaller --onefile --windowed --name $name --icon=$ICON_PATH $name.py
+            pyinstaller --onefile --windowed --name $name --icon="$ICON_PATH" $name.py
           done
+
+      - name: 🛠️ Fix macOS Executables (if needed)
+        if: runner.os == 'macOS'
+        run: chmod +x dist/*
 
       - name: 📂 Upload Build Artifacts
         uses: actions/upload-artifact@v4
