@@ -28,19 +28,10 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller pillow
 
-      - name: 🎨 Set Icon Path
-        run: |
-          if [ "$RUNNER_OS" == "macOS" ]; then
-            ICON_PATH="icons/app.icns"
-          else
-            ICON_PATH="icons/app.ico"
-          fi
-          echo "ICON_PATH=$ICON_PATH" >> $GITHUB_ENV
-
       - name: 🏗️ Build CSV Tools
         run: |
           for name in csvprocessor csvsplitter; do
-            pyinstaller --onefile --windowed --name $name --icon="$ICON_PATH" $name.py
+            pyinstaller --onefile --windowed --name $name $name.py
           done
 
       - name: 🛠️ Fix macOS Executables (if needed)
