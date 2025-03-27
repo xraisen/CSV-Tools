@@ -39,7 +39,7 @@ jobs:
       - name: 🏗️ Build CSV Tools
         run: |
           for name in csvprocessor csvsplitter; do
-            pyinstaller --onefile --windowed --name $name --icon=$ICON_PATH src/$name.py
+            pyinstaller --onefile --windowed --name $name --icon=$ICON_PATH /$name.py
           done
 
       - name: 📂 Upload Build Artifacts
