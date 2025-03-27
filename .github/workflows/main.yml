@@ -3,8 +3,8 @@ name: Build CSV Tools (Windows & macOS)
 on:
   push:
     tags:
-      - 'v*'  # Trigger on versioned tags (e.g., v1.0.0)
-  workflow_dispatch:  # Allow manual trigger
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -28,7 +28,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller pillow
-        continue-on-error: false
 
       - name: 🏠 Build CSV Tools (Windows)
         if: runner.os == 'Windows'
@@ -83,21 +82,21 @@ jobs:
       - name: ⬇️ Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: csv-tools-windows-latest
+          name: csv-tools-windows-latest  # Match build job exactly
           path: releases/windows
 
       - name: ⬇️ Download macOS Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: csv-tools-macos-latest
+          name: csv-tools-macos-latest  # Match build job exactly
           path: releases/macos
 
-      - name: 📋 List Downloaded Files
+      - name: 📋 Debug Downloaded Files
         run: |
           echo "Windows artifacts:"
-          ls -la releases/windows/
+          ls -la releases/windows/ || echo "No files found"
           echo "macOS artifacts:"
-          ls -la releases/macos/
+          ls -la releases/macos/ || echo "No files found"
 
       - name: 📦 Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -109,14 +108,11 @@ jobs:
           name: CSV Tools ${{ github.ref_name }}
           body: |
             ## CSV Tools Release ${{ github.ref_name }}
-            
             This release includes binaries for:
             - Windows (64-bit)
             - macOS
-            
             ### Downloads
             See attached files below.
-            
             ### Changes
             Automatically generated release notes follow below.
           draft: false
