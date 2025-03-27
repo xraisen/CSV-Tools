@@ -28,10 +28,33 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller pillow
 
-      - name: 🏗️ Build CSV Tools
+      - name: 🔍 Check for macOS icon file
+        if: runner.os == 'macOS'
+        run: |
+          if [ ! -f "icons/app.icns" ]; then
+            echo "macOS icon file missing. Skipping icon usage."
+            echo "USE_DEFAULT_ICON=true" >> $GITHUB_ENV
+          else
+            echo "macOS icon file found. Proceeding with build."
+            echo "USE_DEFAULT_ICON=false" >> $GITHUB_ENV
+          fi
+
+      - name: 🏗️ Build CSV Tools (Windows)
+        if: runner.os == 'Windows'
         run: |
           for name in csvprocessor csvsplitter; do
             pyinstaller --onefile --windowed --name $name $name.py
+          done
+
+      - name: 🏗️ Build CSV Tools (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          for name in csvprocessor csvsplitter; do
+            if [ "$USE_DEFAULT_ICON" == "true" ]; then
+              pyinstaller --onefile --name $name $name.py
+            else
+              pyinstaller --onefile --windowed --icon=icons/app.icns --name $name $name.py
+            fi
           done
 
       - name: 🛠️ Fix macOS Executables (if needed)
