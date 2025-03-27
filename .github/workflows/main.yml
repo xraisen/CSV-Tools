@@ -7,8 +7,9 @@ permissions:
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v*'      # Triggers on versioned tags (e.g., v1.0.0)
+      - 'release'  # Allows "release" tag as an option
+  workflow_dispatch:  # Manual trigger option
 
 jobs:
   build:
@@ -68,25 +69,58 @@ jobs:
           path: dist/*/*
           retention-days: 5
 
-- name: 📦 Create GitHub Release
-  uses: softprops/action-gh-release@v2
-  with:
-    files: |
-      releases/windows/windows/*
-      releases/macos/macos/*
-    tag_name: ${{ github.ref_name }}
-    name: CSV Tools ${{ github.ref_name }}
-    body: |
-      ## CSV Tools Release ${{ github.ref_name }}
-      This release includes binaries for:
-      - Windows (64-bit)
-      - macOS
-      ### Downloads
-      See attached files below.
-      ### Changes
-      Automatically generated release notes follow below.
-    draft: false
-    prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-    generate_release_notes: true
-  env:
-    GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/tags/release' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: 📣 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: ⬇️ Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: csv-tools-windows-latest
+          path: releases/windows
+
+      - name: ⬇️ Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: csv-tools-macos-latest
+          path: releases/macos
+
+      - name: 📋 Debug Downloaded Files
+        run: |
+          echo "Windows artifacts:"
+          ls -la releases/windows/windows/ || echo "No Windows files found"
+          echo "macOS artifacts:"
+          ls -la releases/macos/macos/ || echo "No macOS files found"
+          if [ -z "$(ls -A releases/windows/windows)" ] || [ -z "$(ls -A releases/macos/macos)" ]; then
+            echo "Error: One or both artifact directories are empty"
+            exit 1
+          fi
+
+      - name: 📦 Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            releases/windows/windows/*
+            releases/macos/macos/*
+          tag_name: ${{ github.ref_name }}
+          name: CSV Tools ${{ github.ref_name }}
+          body: |
+            ## CSV Tools Release ${{ github.ref_name }}
+            This release includes binaries for:
+            - Windows (64-bit)
+            - macOS
+            ### Downloads
+            See attached files below.
+            ### Changes
+            Automatically generated release notes follow below.
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
