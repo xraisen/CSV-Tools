@@ -12,6 +12,8 @@ A **professional CSV processing suite** with an intuitive GUI—designed for **f
 ## ✨ Features  
 
 ### 🔧 CSV Processor  (email/phone)
+![CSV Processor](https://github.com/xraisen/CSV-Tools/blob/main/screenshots/Screenshot_1.png)
+
 - **Smart deduplication** – merge rows while retaining unique values  
 - **Multiple output modes** – combine (comma-separated) or split (multi-row)  
 - **Auto-detects** email/phone columns  
@@ -19,6 +21,8 @@ A **professional CSV processing suite** with an intuitive GUI—designed for **f
 - **Batch processing** for multiple files  
 
 ### ✂️ CSV Splitter  
+![CSV Splitter](https://github.com/xraisen/CSV-Tools/blob/main/screenshots/Screenshot_2.png)
+
 - **Flexible splitting** – by row count or file size  
 - **Real-time progress tracking**  
 - **Auto-organized output folders** with timestamps  
