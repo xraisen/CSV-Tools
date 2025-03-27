@@ -118,7 +118,7 @@ Distributed under the **MIT License**. See `LICENSE` for details.
 
 ## 📬 Contact  
 
-**xRaisen** - [@xRaisen](https://twitter.com/xRaisen) - jpm.onestop@gmail.com  
+**xRaisen** - xraisen@gmail.com  
 
 ### Resources  
 - [GitHub Repo](https://github.com/xraisen/csv-tools)  
