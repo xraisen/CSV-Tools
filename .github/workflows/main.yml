@@ -32,15 +32,19 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          foreach ($name in @("csvprocessor", "csvsplitter")) {
-              pyinstaller --onefile --windowed --name $name "$name.py"
+          $scripts = @("csvprocessor.py", "csvsplitter.py")
+          foreach ($script in $scripts) {
+              $name = [System.IO.Path]::GetFileNameWithoutExtension($script)
+              pyinstaller --onefile --windowed --name $name $script
           }
 
-      - name: 🏠 Build CSV Tools (macOS)
+      - name: 🍏 Build CSV Tools (macOS)
         if: runner.os == 'macOS'
+        shell: bash
         run: |
-          for name in csvprocessor csvsplitter; do
-            pyinstaller --onefile --name "$name" "$name.py"
+          for script in csvprocessor.py csvsplitter.py; do
+            name=$(basename "$script" .py)
+            pyinstaller --onefile --name "$name" "./$script"
           done
 
       - name: 🛠️ Fix macOS Executables (if needed)
