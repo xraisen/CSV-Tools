@@ -18,58 +18,61 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🐍 Set Up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: 📦 Install Dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install pip-tools
+          pip-compile --resolver=backtracking requirements.txt
           pip install -r requirements.txt
           pip install pyinstaller
 
       - name: 🎨 Set Icon Path
-        id: icons
         run: |
-          echo "ICON_PATH=icons/app.ico" >> $GITHUB_ENV
-        if: runner.os == 'Windows'
+          ICON_PATH="icons/app.ico"
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            ICON_PATH="icons/app.icns"
+          fi
+          echo "ICON_PATH=$ICON_PATH" >> $GITHUB_ENV
 
-      - name: 🎨 Set Icon Path (macOS)
-        id: icons-mac
+      - name: 🏗️ Build CSV Tools
         run: |
-          echo "ICON_PATH=icons/app.icns" >> $GITHUB_ENV
-        if: runner.os == 'macOS'
+          for name in csvprocessor csvsplitter; do
+            pyinstaller --onefile --windowed --name $name --icon=$ICON_PATH src/$name.py
+          done
 
-      - name: 🏗️ Build CSV Processor (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          pyinstaller --onefile --windowed --name csvprocessor --icon=icons/app.ico src/csvprocessor.py
-
-      - name: 🏗️ Build CSV Splitter (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          pyinstaller --onefile --windowed --name csvsplitter --icon=icons/app.ico src/csvsplitter.py
-
-      - name: 🏗️ Build CSV Processor (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          pyinstaller --onefile --windowed --name csvprocessor --icon=icons/app.icns src/csvprocessor.py
-
-      - name: 🏗️ Build CSV Splitter (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          pyinstaller --onefile --windowed --name csvsplitter --icon=icons/app.icns src/csvsplitter.py
-
-      - name: 📂 Upload Windows Build
-        if: runner.os == 'Windows'
+      - name: 📂 Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: csv-tools-windows
-          path: dist/*.exe
+          name: csv-tools-${{ runner.os }}
+          path: dist/*
 
-      - name: 📂 Upload macOS Build
-        if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Download Windows Build
+        uses: actions/download-artifact@v4
         with:
-          name: csv-tools-macos
-          path: dist/csvprocessor
+          name: csv-tools-Windows
+          path: releases/windows
+
+      - name: ⬇️ Download macOS Build
+        uses: actions/download-artifact@v4
+        with:
+          name: csv-tools-macOS
+          path: releases/macos
+
+      - name: 📦 Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            releases/windows/*
+            releases/macos/*
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
