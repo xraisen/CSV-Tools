@@ -21,7 +21,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: 'pip'  # Add pip caching for faster builds
+          cache: 'pip'
 
       - name: 📦 Install Dependencies
         run: |
@@ -46,7 +46,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          set -e  # Exit on any error
+          set -e
           for script in csvprocessor.py csvsplitter.py; do
             name=$(basename "$script" .py)
             pyinstaller --onefile --name "$name" --distpath dist/macos "$script"
@@ -68,12 +68,17 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')  # Only run on tag pushes
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
       - name: 📣 Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history for release notes
+          fetch-depth: 0
+
+      - name: 🐛 Debug Trigger Context
+        run: |
+          echo "github.ref: ${{ github.ref }}"
+          echo "github.event_name: ${{ github.event_name }}"
 
       - name: ⬇️ Download Windows Artifacts
         uses: actions/download-artifact@v4
@@ -116,6 +121,6 @@ jobs:
             Automatically generated release notes follow below.
           draft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-          generate_release_notes: true  # Append auto-generated release notes
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
