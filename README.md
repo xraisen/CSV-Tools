@@ -7,7 +7,7 @@
 
 Professional CSV processing utilities with a beautiful GUI - Processor and Splitter tools for Windows and macOS.
 
-![CSV Tools Screenshot](screenshots/main_window.png)
+![CSV Tools Screenshot](screenshots/main_window.jpg)
 
 ---
 
