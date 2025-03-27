@@ -30,10 +30,11 @@ jobs:
 
       - name: 🏠 Build CSV Tools (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          for name in csvprocessor csvsplitter; do
-            pyinstaller --onefile --windowed --name $name $name.py
-          done
+          foreach ($name in "csvprocessor", "csvsplitter") {
+              pyinstaller --onefile --windowed --name $name $name.py
+          }
 
       - name: 🏠 Build CSV Tools (macOS)
         if: runner.os == 'macOS'
