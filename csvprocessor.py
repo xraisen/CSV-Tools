@@ -34,16 +34,13 @@ def split_values(raw_text, split_mode):
         return [val.strip() for val in raw_text.splitlines() if val.strip()]
     return [raw_text]
 
-def collect_emails_and_phones(row, headers, split_mode, email_col=None, phone_col=None):
+def collect_emails_and_phones(row, headers):
     """
-    Extracts emails and phone numbers from a CSV row based on primary and additional columns.
+    Extracts emails and phone numbers from a CSV row.
     
     Args:
         row (dict): A CSV row.
         headers (list): List of CSV header names.
-        split_mode (str): The split mode ("Comma" or "Rows").
-        email_col (str): The primary email column name.
-        phone_col (str): The primary phone column name.
     
     Returns:
         tuple: Two lists, one for emails and one for phone numbers.
@@ -51,30 +48,19 @@ def collect_emails_and_phones(row, headers, split_mode, email_col=None, phone_co
     emails = []
     phones = []
     
-    if email_col and email_col in headers:
-        email_val = row.get(email_col, "").strip()
-        if email_val:
-            emails.extend(split_values(email_val, split_mode))
-    if phone_col and phone_col in headers:
-        phone_val = row.get(phone_col, "").strip()
-        if phone_val:
-            phones.extend(split_values(phone_val, split_mode))
-    
-    for i in range(1, 6):
-        email_col_x = f"EMAIL: Email{i}"
-        phone_col_x = f"PH: Phone{i}"
-        if email_col_x in headers:
-            email_val = row.get(email_col_x, "").strip()
+    # Collect all email and phone columns
+    for header in headers:
+        header_lower = header.lower()
+        if "email" in header_lower:
+            email_val = row.get(header, "").strip()
             if email_val:
-                emails.extend(split_values(email_val, split_mode))
-        if phone_col_x in headers:
-            phone_val = row.get(phone_col_x, "").strip()
+                emails.append(email_val)
+        elif "phone" in header_lower:
+            phone_val = row.get(header, "").strip()
             if phone_val:
-                phones.extend(split_values(phone_val, split_mode))
+                phones.append(phone_val)
     
-    emails = list(dict.fromkeys(emails))
-    phones = list(dict.fromkeys(phones))
-    return emails, phones
+    return list(dict.fromkeys(emails)), list(dict.fromkeys(phones))
 
 def consolidate_rows(reader, key_fields):
     """
@@ -95,7 +81,7 @@ def consolidate_rows(reader, key_fields):
         if key not in consolidated:
             consolidated[key] = {"emails": [], "phones": [], "base": {}}
         entry = consolidated[key]
-        emails, phones = collect_emails_and_phones(row, reader.fieldnames, "Comma")
+        emails, phones = collect_emails_and_phones(row, reader.fieldnames)
         entry["emails"].extend(emails)
         entry["phones"].extend(phones)
         for field in reader.fieldnames:
@@ -122,7 +108,7 @@ def process_csv_custom(input_file, output_definitions, streamline_type, split_mo
     """
     try:
         logging.info(f"Starting processing of {input_file}")
-        with open(input_file, newline='', encoding='utf-8') as csv_in:
+        with open(input_file, newline='', encoding='utf-8-sig') as csv_in:
             sample = csv_in.read(1024)
             csv_in.seek(0)
             try:
@@ -135,36 +121,30 @@ def process_csv_custom(input_file, output_definitions, streamline_type, split_mo
                 logging.error("No headers found in CSV")
                 return None
 
-            key_fields = ["FIRST_NAME", "LAST_NAME", "ACTIVATION", "LOAN_AMOUNT"]
-            key_fields = [f for f in key_fields if f in headers]
+            # Use first few columns as key fields if standard fields not found
+            key_fields = ["ACTIVATION", "Phone1", "Phone2", "Email1"]
+            key_fields = [f for f in key_fields if f in headers] or headers[:4]
             logging.debug(f"Using key fields for consolidation: {key_fields}")
             consolidated_data = consolidate_rows(reader, key_fields)
 
-            email_col = next((h for h in headers if "email" in h.lower() and "email:" not in h.lower()), None)
-            phone_col = next((h for h in headers if "phone" in h.lower() and "ph:" not in h.lower()), None)
-            if streamline_type in ("Email", "Email & Phone") and not email_col:
-                email_col = next((h for h in headers if "email" in h.lower()), None)
-            if streamline_type in ("Phone", "Email & Phone") and not phone_col:
-                phone_col = next((h for h in headers if "phone" in h.lower()), None)
-            logging.debug(f"Detected email column: {email_col}, phone column: {phone_col}")
-
+            # Prepare output headers
             out_headers = list(output_definitions)
-            if email_col:
-                out_headers.append("Email" if streamline_type in ("None", "Email", "Email & Phone") else "Emails")
-            if phone_col:
-                out_headers.append("Phone" if streamline_type in ("None", "Phone", "Email & Phone") else "Phones")
+            if streamline_type in ("Email", "Email & Phone"):
+                out_headers.append("Email")
+            if streamline_type in ("Phone", "Email & Phone"):
+                out_headers.append("Phone")
             logging.debug(f"Output headers: {out_headers}")
 
             base, ext = os.path.splitext(input_file)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_file = f"{base}_{timestamp}{ext}"
+            output_file = f"{base}_processed_{timestamp}{ext}"
 
             with open(output_file, 'w', newline='', encoding='utf-8') as csv_out:
                 writer = csv.DictWriter(csv_out, fieldnames=out_headers)
                 writer.writeheader()
 
                 for key, data in consolidated_data.items():
-                    base_row = {hdr: data["base"].get(hdr, "") for hdr in output_definitions}
+                    base_row = {hdr: data["base"].get(hdr, "") for hdr in output_definitions if hdr in data["base"]}
                     valid_emails = [e for e in data["emails"] if "@" in e]
                     phones = data["phones"]
                     phone_str = ", ".join(phones) if phones else ""
@@ -181,11 +161,13 @@ def process_csv_custom(input_file, output_definitions, streamline_type, split_mo
                         elif split_mode == "Rows":
                             if not valid_emails and not phones:
                                 continue  # Skip if no data
-                            max_count = max(len(valid_emails), len(phones))
+                            max_count = max(len(valid_emails), len(phones)) or 1
                             for i in range(max_count):
                                 out_row = dict(base_row)
-                                out_row["Email"] = valid_emails[i] if i < len(valid_emails) else ""
-                                out_row["Phone"] = phones[i] if i < len(phones) else ""
+                                if "Email" in out_headers:
+                                    out_row["Email"] = valid_emails[i] if i < len(valid_emails) else ""
+                                if "Phone" in out_headers:
+                                    out_row["Phone"] = phones[i] if i < len(phones) else ""
                                 writer.writerow(out_row)
                     elif streamline_type == "Email":
                         if split_mode == "Comma":
@@ -194,35 +176,27 @@ def process_csv_custom(input_file, output_definitions, streamline_type, split_mo
                             out_row = dict(base_row)
                             if "Email" in out_headers:
                                 out_row["Email"] = email_str
-                            if "Phones" in out_headers:
-                                out_row["Phones"] = phone_str
                             writer.writerow(out_row)
                         elif split_mode == "Rows":
                             if not valid_emails:  # Skip if no emails
                                 continue
-                            for i, email in enumerate(valid_emails):
+                            for email in valid_emails:
                                 out_row = dict(base_row)
                                 out_row["Email"] = email
-                                if "Phones" in out_headers:
-                                    out_row["Phones"] = phone_str
                                 writer.writerow(out_row)
                     elif streamline_type == "Phone":
                         if split_mode == "Comma":
                             if not phones:  # Skip if no phones
                                 continue
                             out_row = dict(base_row)
-                            if "Emails" in out_headers:
-                                out_row["Emails"] = email_str
                             if "Phone" in out_headers:
                                 out_row["Phone"] = phone_str
                             writer.writerow(out_row)
                         elif split_mode == "Rows":
                             if not phones:  # Skip if no phones
                                 continue
-                            for i, phone in enumerate(phones):
+                            for phone in phones:
                                 out_row = dict(base_row)
-                                if "Emails" in out_headers:
-                                    out_row["Emails"] = email_str
                                 out_row["Phone"] = phone
                                 writer.writerow(out_row)
                     else:  # "None"
@@ -236,11 +210,13 @@ def process_csv_custom(input_file, output_definitions, streamline_type, split_mo
                         elif split_mode == "Rows":
                             if not valid_emails and not phones:
                                 continue  # Skip if no data
-                            max_count = max(len(valid_emails), len(phones))
+                            max_count = max(len(valid_emails), len(phones)) or 1
                             for i in range(max_count):
                                 out_row = dict(base_row)
-                                out_row["Email"] = valid_emails[i] if i < len(valid_emails) else ""
-                                out_row["Phone"] = phones[i] if i < len(phones) else ""
+                                if "Email" in out_headers:
+                                    out_row["Email"] = valid_emails[i] if i < len(valid_emails) else ""
+                                if "Phone" in out_headers:
+                                    out_row["Phone"] = phones[i] if i < len(phones) else ""
                                 writer.writerow(out_row)
 
             logging.info(f"Processing complete. Output file: {output_file}")
@@ -340,15 +316,15 @@ class CSVProcessorGUI:
             "       - 'Comma': One row with all emails and phones comma-separated.\n"
             "       - 'Rows': One row per email-phone pair, max count if uneven; skips if no data.\n"
             "    * 'Email':\n"
-            "       - 'Comma': One row with all emails comma-separated, phones aggregated; skips if no emails.\n"
-            "       - 'Rows': One row per email, all phones aggregated; skips if no emails.\n"
+            "       - 'Comma': One row with all emails comma-separated; skips if no emails.\n"
+            "       - 'Rows': One row per email; skips if no emails.\n"
             "    * 'Phone':\n"
-            "       - 'Comma': One row with all phones comma-separated, emails aggregated; skips if no phones.\n"
-            "       - 'Rows': One row per phone, emails aggregated; skips if no phones.\n"
+            "       - 'Comma': One row with all phones comma-separated; skips if no phones.\n"
+            "       - 'Rows': One row per phone; skips if no phones.\n"
             "    * 'Email & Phone':\n"
             "       - 'Comma': One row with all emails and phones comma-separated.\n"
             "       - 'Rows': One row per email-phone pair, blank if uneven; skips if no data.\n"
-            "- Note: 'Comma' aggregates data; 'Rows' separates entries."
+            "- Note: Email/Phone columns are automatically added based on streamline type."
         )
         desc_label = ttk.Label(root, text=description, wraplength=780, justify="left", font=("Segoe UI", 10))
         desc_label.pack(pady=(10, 5), padx=10, anchor="w")
@@ -402,7 +378,7 @@ class CSVProcessorGUI:
             self.file_entry.delete(0, tk.END)
             self.file_entry.insert(0, file_path)
             try:
-                with open(file_path, newline='', encoding='utf-8') as csv_in:
+                with open(file_path, newline='', encoding='utf-8-sig') as csv_in:
                     sample = csv_in.read(1024)
                     csv_in.seek(0)
                     try:
