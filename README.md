@@ -11,7 +11,7 @@ A **professional CSV processing suite** with an intuitive GUI—designed for **f
 
 ## ✨ Features  
 
-### 🔧 CSV Processor  
+### 🔧 CSV Processor  (email/phone)
 - **Smart deduplication** – merge rows while retaining unique values  
 - **Multiple output modes** – combine (comma-separated) or split (multi-row)  
 - **Auto-detects** email/phone columns  
