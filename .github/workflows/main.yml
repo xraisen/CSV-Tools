@@ -28,6 +28,11 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller pillow
 
+      - name: 🧹 Clean previous builds
+        run: |
+          rm -rf build dist *.spec
+        shell: bash
+
       - name: 🏠 Build CSV Tools (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
