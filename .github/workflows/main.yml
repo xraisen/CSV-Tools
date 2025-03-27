@@ -26,7 +26,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pip-tools
-          pip-compile --resolver=backtracking requirements.txt
+          pip-compile requirements.in -o requirements.txt  # Fix output filename
           pip install -r requirements.txt
           pip install pyinstaller
 
