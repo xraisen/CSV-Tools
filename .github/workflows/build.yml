@@ -1,0 +1,58 @@
+name: Build CSV Tools (Windows & macOS)
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger only on versioned tags (e.g., v1.0.0)
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: 📣 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 🧹 Clean previous builds
+        run: |
+          if [ -d "build" ]; then rm -rf build; fi
+          if [ -d "dist" ]; then rm -rf dist; fi
+          if ls *.spec 1> /dev/null 2>&1; then rm -f *.spec; fi
+        shell: bash
+
+      - name: 🏠 Build CSV Tools (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($name in "csvprocessor", "csvsplitter") {
+              $script = "$name.py"
+              pyinstaller --onefile --windowed --name $name $script
+          }
+
+      - name: 🍏 Build CSV Tools (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          for script in csvprocessor.py csvsplitter.py; do
+            name=$(basename "$script" .py)
+            pyinstaller --onefile --name "$name" "./$script"
+          done
+
+      - name: 🛠️ Fix macOS Executables (if needed)
+        if: runner.os == 'macOS'
+        run: chmod +x dist/*
+
+      - name: 📚 Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: csv-tools-${{ runner.os }}
+          path: dist/*
