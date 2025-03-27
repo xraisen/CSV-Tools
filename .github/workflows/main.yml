@@ -1,0 +1,129 @@
+name: Build Cross-Platform CSV Tools
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+  BUILD_DIR: 'dist'
+  ICON_WIN: 'icons/app.ico'
+  ICON_MAC: 'icons/app.icns'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+        script: 
+          - name: csvprocessor
+            desc: "CSV Processor Tool"
+          - name: csvsplitter
+            desc: "CSV Splitter Tool"
+        include:
+          - os: windows-latest
+            icon: ${{ env.ICON_WIN }}
+            ext: exe
+            args: --version-file version_info.txt --noconsole
+          - os: macos-latest
+            icon: ${{ env.ICON_MAC }}
+            ext: ''
+            args: --noconsole
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build executable
+      run: |
+        echo "Building ${{ matrix.script.name }} for ${{ runner.os }}"
+        
+        pyinstaller --onefile \
+                    --name ${{ matrix.script.name }}_${{ runner.os }} \
+                    --icon ${{ matrix.icon }} \
+                    --distpath ${{ env.BUILD_DIR }} \
+                    --workpath build \
+                    --specpath build \
+                    ${{ matrix.args }} \
+                    ${{ matrix.script.name }}.py
+        
+        # Rename output file appropriately
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          mv "${{ env.BUILD_DIR }}/${{ matrix.script.name }}_${{ runner.os }}.exe" "${{ matrix.script.name }}_windows.exe"
+        else
+          mv "${{ env.BUILD_DIR }}/${{ matrix.script.name }}_${{ runner.os }}" "${{ matrix.script.name }}_macos"
+          chmod +x "${{ matrix.script.name }}_macos"
+        fi
+
+    - name: Verify executable
+      run: |
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          ./${{ matrix.script.name }}_windows.exe --version || echo "Version check failed"
+        else
+          ./${{ matrix.script.name }}_macos --version || echo "Version check failed"
+        fi
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.script.name }}_${{ runner.os }}
+        path: |
+          ${{ matrix.script.name }}_windows.exe
+          ${{ matrix.script.name }}_macos
+        retention-days: 7
+
+    - name: Create release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ${{ matrix.script.name }}_windows.exe
+          ${{ matrix.script.name }}_macos
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+
+  # Additional quality checks
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - run: pip install flake8 black
+    - run: flake8 --max-line-length=120 --ignore=E402,W503 *.py
+    - run: black --check --diff *.py
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - run: pip install -r requirements.txt
+    - run: python -m unittest discover -s tests
