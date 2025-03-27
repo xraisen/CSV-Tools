@@ -1,4 +1,4 @@
-name: Build CSV Tools (Windows & macOS)
+name: Build & Release CSV Tools (Windows & macOS)
 
 on:
   push:
@@ -21,6 +21,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller pillow
 
       - name: 🧹 Clean previous builds
         run: |
@@ -56,3 +62,30 @@ jobs:
         with:
           name: csv-tools-${{ runner.os }}
           path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Download Windows Build
+        uses: actions/download-artifact@v4
+        with:
+          name: csv-tools-Windows
+          path: releases/windows
+
+      - name: ⬇️ Download macOS Build
+        uses: actions/download-artifact@v4
+        with:
+          name: csv-tools-macOS
+          path: releases/macos
+
+      - name: 📦 Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            releases/windows/*
+            releases/macos/*
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
