@@ -1,9 +1,9 @@
-name: Build & Release CSV Tools (Windows & macOS)
+name: Build CSV Tools (Windows & macOS)
 
 on:
   push:
     tags:
-      - 'v*'  # Trigger only on versioned tags (e.g., v1.0.0)
+      - 'v*'  # Trigger on versioned tags (e.g., v1.0.0)
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -21,65 +21,68 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: 'pip'  # Add pip caching for faster builds
 
       - name: 📦 Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller pillow
-
-      - name: 🧹 Clean previous builds
-        run: |
-          if [ -d "build" ]; then rm -rf build; fi
-          if [ -d "dist" ]; then rm -rf dist; fi
-          if ls *.spec 1> /dev/null 2>&1; then rm -f *.spec; fi
-        shell: bash
+        continue-on-error: false
 
       - name: 🏠 Build CSV Tools (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          foreach ($name in "csvprocessor", "csvsplitter") {
-              $script = "$name.py"
-              pyinstaller --onefile --windowed --name $name $script
+          $ErrorActionPreference = "Stop"
+          $scripts = @("csvprocessor.py", "csvsplitter.py")
+          foreach ($script in $scripts) {
+              $name = [System.IO.Path]::GetFileNameWithoutExtension($script)
+              pyinstaller --onefile --windowed --name $name --distpath dist/windows $script
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
       - name: 🍏 Build CSV Tools (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
+          set -e  # Exit on any error
           for script in csvprocessor.py csvsplitter.py; do
             name=$(basename "$script" .py)
-            pyinstaller --onefile --name "$name" "./$script"
+            pyinstaller --onefile --name "$name" --distpath dist/macos "$script"
           done
 
-      - name: 🛠️ Fix macOS Executables (if needed)
+      - name: 🛠️ Fix macOS Executables Permissions
         if: runner.os == 'macOS'
-        run: chmod +x dist/*
+        shell: bash
+        run: |
+          chmod +x dist/macos/*
 
       - name: 📚 Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: csv-tools-${{ runner.os }}
-          path: dist/*
+          name: csv-tools-${{ matrix.os }}
+          path: dist/*/*
+          retention-days: 5
 
   release:
     needs: build
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')  # Only run on tag pushes
     steps:
-      - name: ⬇️ Download Windows Build
+      - name: ⬇️ Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: csv-tools-Windows
+          name: csv-tools-windows-latest
           path: releases/windows
 
-      - name: ⬇️ Download macOS Build
+      - name: ⬇️ Download macOS Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: csv-tools-macOS
+          name: csv-tools-macos-latest
           path: releases/macos
 
-      - name: 📦 Create Release
+      - name: 📦 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
@@ -89,3 +92,6 @@ jobs:
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
+          generate_release_notes: true  # Auto-generate release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
