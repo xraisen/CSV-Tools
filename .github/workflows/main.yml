@@ -40,7 +40,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           for name in csvprocessor csvsplitter; do
-            pyinstaller --onefile --name $name $name.py
+            pyinstaller --onefile --name "$name" "$name.py"
           done
 
       - name: 🛠️ Fix macOS Executables (if needed)
