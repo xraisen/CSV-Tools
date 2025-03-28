@@ -7,9 +7,9 @@ permissions:
 on:
   push:
     tags:
-      - 'v*'      # Triggers on versioned tags (e.g., v1.0.0)
-      - 'release'  # Allows "release" tag as an option
-  workflow_dispatch:  # Manual trigger option
+      - 'v*'
+      - 'release'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -41,32 +41,33 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $scripts = @("csvprocessor.py", "csvsplitter.py", "csvsearchai.py")
+          New-Item -ItemType Directory -Force -Path dist/windows | Out-Null
           foreach ($script in $scripts) {
               $name = [System.IO.Path]::GetFileNameWithoutExtension($script)
               pyinstaller --onefile --noconsole --hidden-import=google --hidden-import=google.auth --hidden-import=google.auth.transport --name $name --distpath dist/windows $script
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+          echo "Windows Build Output:"
+          Get-ChildItem dist/windows -Recurse
 
       - name: 🍏 Build CSV Tools (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
           set -e
+          mkdir -p dist/macos
           for script in csvprocessor.py csvsplitter.py csvsearchai.py; do
             name=$(basename "$script" .py)
             pyinstaller --onefile --hidden-import=google --hidden-import=google.auth --hidden-import=google.auth.transport --name "$name" --distpath dist/macos "$script"
           done
-
-      - name: 🛠️ Fix macOS Executables Permissions
-        if: runner.os == 'macOS'
-        shell: bash
-        run: chmod +x dist/macos/*
+          echo "macOS Build Output:"
+          ls -la dist/macos/
 
       - name: 📚 Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: csv-tools-${{ matrix.os }}
-          path: dist/*/*
+          path: dist/${{ matrix.os == 'windows-latest' && 'windows' || 'macos' }}/*
           retention-days: 5
 
   release:
