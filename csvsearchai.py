@@ -22,7 +22,7 @@ SETTINGS_FILE = 'settings.json'  # File to store persistent settings
 CHAT_HISTORY_FILE = 'chat_history.json'  # File to store chat history
 CHUNK_SIZE = 10000  # For chunk-based searching
 DEFAULT_ROWS_PER_PAGE = 10  # Default for pagination
-DEFAULT_SEARCH_COLUMN = 'email'  # Default column to search
+# Removed DEFAULT_SEARCH_COLUMN as search is now across all columns
 
 # Create uploads directory if it doesn't exist
 if not os.path.exists(UPLOAD_FOLDER):
@@ -36,10 +36,10 @@ def load_settings():
                 return json.load(f)
     except Exception as e:
         print(f"Error loading settings: {e}")
+    # Removed search_column from persistent settings
     return {
         'csv_path': DEFAULT_CSV_PATH,
         'model': 'gemini-2.0-flash-thinking-exp-01-21',
-        'search_column': DEFAULT_SEARCH_COLUMN,
         'dark_mode': False,
         'rows_per_page': DEFAULT_ROWS_PER_PAGE  # Add rows per page to settings
     }
@@ -81,8 +81,10 @@ def clear_api_key(exception):
         if 'api_key' in session:
             session.pop('api_key', None)
 
-# Helper function to search CSV in chunks
-def chunk_search_csv(csv_path, search_text, search_column):
+# --- Revised CSV Search Function ---
+# Previously, the search was limited to a single column.
+# Now, we iterate over all columns and mark those where the cell value contains the search text.
+def chunk_search_csv(csv_path, search_text):
     results = []
     try:
         chunk_iter = pd.read_csv(csv_path, chunksize=CHUNK_SIZE, dtype=str, keep_default_na=False)
@@ -92,24 +94,23 @@ def chunk_search_csv(csv_path, search_text, search_column):
     
     row_offset = 0
     for chunk in chunk_iter:
-        columns_lower = {col.lower(): col for col in chunk.columns}
-        search_col_lower = search_column.lower()
-        if search_col_lower not in columns_lower:
-            return []
-        
-        actual_column = columns_lower[search_col_lower]
-        mask = chunk[actual_column].str.contains(search_text, case=False, na=False)
-        filtered = chunk[mask]
-        for local_index, row in filtered.iterrows():
-            global_row_index = row_offset + local_index
-            results.append({
-                'row_index': global_row_index,
-                'data': row.to_dict(),
-                'matching_columns': [actual_column]
-            })
+        for local_index, row in chunk.iterrows():
+            matching_columns = []
+            for col in chunk.columns:
+                if search_text.lower() in str(row[col]).lower():
+                    matching_columns.append(col)
+            if matching_columns:
+                global_row_index = row_offset + local_index
+                results.append({
+                    'row_index': global_row_index,
+                    'data': row.to_dict(),
+                    'matching_columns': matching_columns
+                })
         row_offset += len(chunk)
     return results
 
+# --- Updated AI Response Function ---
+# The AI role prompt now mentions that the search is performed across all columns.
 def get_ai_response(search_summary, user_query, last_query):
     api_key = session.get('api_key')
     model = session.get('model', 'gemini-2.0-flash-thinking-exp-01-21')
@@ -146,10 +147,10 @@ def get_ai_response(search_summary, user_query, last_query):
         row_info += ", ".join([f"{k}={v}" for k, v in row.items() if k != 'row_index'])
         sample_text += row_info + "\n"
 
-    search_column = session.get('search_column', DEFAULT_SEARCH_COLUMN)
+    # Updated prompt to indicate search across all columns.
     ai_role = (
         f"You are an AI assistant specialized in CSV data analysis. "
-        f"Based on the search results (searched via '{search_column}' column with query '{last_query}'), you can:\n"
+        f"Based on the search results (searched across all columns with query '{last_query}'), you can:\n"
         "- Provide information about the search results without modifying the table (e.g., total row count, counts of specific data).\n"
         "- Manipulate the table (e.g., sort, filter, combine columns).\n"
         "**Instructions:**\n"
@@ -389,7 +390,9 @@ def preview_csv_headers():
     except Exception as e:
         return jsonify({"error": f"Error reading CSV headers: {str(e)}"})
 
-# HTML Template with improved settings
+# --- Updated HTML Template ---
+# Removed the Search Column field from the settings modal.
+# Updated the search form label to "Search in all columns:".
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -784,14 +787,7 @@ HTML_TEMPLATE = """
                     <p>{{ current_csv_path }}</p>
                     <label>Upload New CSV File:</label>
                     <input type="file" name="csv_file" id="csvFileInput" accept=".csv">
-                    <label>Search Column:</label>
-                    <select name="search_column" id="searchColumnSelect">
-                        {% for column in csv_columns %}
-                            <option value="{{ column }}" {% if current_search_column == column %}selected{% endif %}>
-                                {{ column }}
-                            </option>
-                        {% endfor %}
-                    </select>
+                    <!-- Removed Search Column field per request -->
                     <label>Rows Per Page:</label>
                     <input type="number" name="rows_per_page" id="rowsPerPageInput" value="{{ current_rows_per_page }}" min="1" max="100">
                     <label>AI Model:</label>
@@ -819,7 +815,6 @@ HTML_TEMPLATE = """
                         <button type="button" id="cancelSettingsBtn">Cancel</button>
                     </div>
                     <p style="font-size: 12px; text-align: center; color: gray;">Powered by Jose Espinosa by AE1O1, owned by Ahmed Elhadi © 2025\njpm.onestop@gmail.com</p>
-
                 </form>
             </div>
         </div>
@@ -846,8 +841,9 @@ HTML_TEMPLATE = """
         </div>
         
         <!-- Search Form -->
+        <!-- Updated label to reflect searching across all columns -->
         <form id="searchForm">
-            <label>Search in {{ current_search_column }}:</label><br>
+            <label>Search in all columns:</label><br>
             <input type="text" id="searchQuery" required>
             <input type="submit" value="Search">
         </form>
@@ -994,14 +990,7 @@ HTML_TEMPLATE = """
                     return;
                 }
 
-                const searchColumnSelect = document.getElementById('searchColumnSelect');
-                searchColumnSelect.innerHTML = '';
-                data.headers.forEach(header => {
-                    const option = document.createElement('option');
-                    option.value = header;
-                    option.textContent = header;
-                    searchColumnSelect.appendChild(option);
-                });
+                // Update logic if needed for previewing headers
             } catch (err) {
                 console.error('Error previewing CSV headers:', err);
                 showError('Failed to preview CSV headers: ' + err.message);
@@ -1356,12 +1345,11 @@ HTML_TEMPLATE = """
 # Flask Routes
 @app.route('/')
 def index():
+    # Removed search_column from session initialization since search is across all columns now.
     if 'csv_path' not in session:
         session['csv_path'] = persistent_settings.get('csv_path', DEFAULT_CSV_PATH)
     if 'model' not in session:
         session['model'] = persistent_settings.get('model', 'gemini-2.0-flash-thinking-exp-01-21')
-    if 'search_column' not in session:
-        session['search_column'] = persistent_settings.get('search_column', DEFAULT_SEARCH_COLUMN)
     if 'rows_per_page' not in session:
         session['rows_per_page'] = persistent_settings.get('rows_per_page', DEFAULT_ROWS_PER_PAGE)
     if 'api_key' not in session:
@@ -1371,7 +1359,7 @@ def index():
 
     current_csv_path = session['csv_path']
     current_model = session['model']
-    current_search_column = session['search_column']
+    # Removed current_search_column variable
     current_rows_per_page = session['rows_per_page']
     current_api_key = '' if session['api_key'] is None else session['api_key']
     dark_mode = persistent_settings.get('dark_mode', False)
@@ -1386,7 +1374,7 @@ def index():
         current_csv_path=current_csv_path,
         current_model=current_model,
         current_api_key=current_api_key,
-        current_search_column=current_search_column,
+        # Updated search label in the template; no current_search_column passed.
         current_rows_per_page=current_rows_per_page,
         dark_mode=dark_mode,
         chat_history=chat_history,
@@ -1414,7 +1402,7 @@ def settings():
     api_key = request.form.get('api_key', '').strip()
     if api_key:
         session['api_key'] = api_key
-    session['search_column'] = request.form.get('search_column', DEFAULT_SEARCH_COLUMN)
+    # Removed search_column update from settings as per request
     rows_per_page = int(request.form.get('rows_per_page', DEFAULT_ROWS_PER_PAGE))
     if rows_per_page < 1 or rows_per_page > 100:
         session['error_message'] = 'Rows per page must be between 1 and 100.'
@@ -1426,7 +1414,7 @@ def settings():
     persistent_settings.update({
         'csv_path': session['csv_path'],
         'model': session['model'],
-        'search_column': session['search_column'],
+        # Removed search_column from persistent settings update
         'dark_mode': dark_mode,
         'rows_per_page': session['rows_per_page']
     })
@@ -1440,7 +1428,7 @@ def search():
     query = request.json.get('query', '').strip()
     page = request.json.get('page', 1)
     csv_path = session.get('csv_path', DEFAULT_CSV_PATH)
-    search_column = session.get('search_column', DEFAULT_SEARCH_COLUMN)
+    # Removed search_column parameter; search now runs across all columns.
     
     if not query:
         return jsonify({"error": "Search query cannot be empty."})
@@ -1448,9 +1436,9 @@ def search():
     if not os.path.exists(csv_path):
         return jsonify({"html": "<p style='color:red;'>CSV file not found.</p>", "total_pages": 1})
     
-    search_results = chunk_search_csv(csv_path, query, search_column)
+    search_results = chunk_search_csv(csv_path, query)
     if not search_results and not get_csv_columns(csv_path):
-        return jsonify({"error": f"Column '{search_column}' not found in CSV file."})
+        return jsonify({"error": "No matching columns found in CSV file."})
     
     html, summary, total_pages = generate_table_html(search_results, page)
     session['search_summary'] = summary
@@ -1473,7 +1461,7 @@ def manipulate_table():
     action = request.json.get('action')
     page = request.json.get('page', 1)
     query = session.get('last_query', '')
-    search_column = session.get('search_column', DEFAULT_SEARCH_COLUMN)
+    # Removed search_column parameter
     
     if not query:
         return jsonify({"html": "<p>No search query available to manipulate.</p>", "total_pages": 1})
@@ -1482,9 +1470,9 @@ def manipulate_table():
     if not os.path.exists(csv_path):
         return jsonify({"html": "<p style='color:red;'>CSV file not found.</p>", "total_pages": 1})
     
-    search_results = chunk_search_csv(csv_path, query, search_column)
+    search_results = chunk_search_csv(csv_path, query)
     if not search_results and not get_csv_columns(csv_path):
-        return jsonify({"error": f"Column '{search_column}' not found in CSV file."})
+        return jsonify({"error": "No matching columns found in CSV file."})
     
     search_results = manipulate_results(search_results, action)
     html, _, total_pages = generate_table_html(search_results, page)
@@ -1493,7 +1481,7 @@ def manipulate_table():
 @app.route('/export')
 def export():
     query = session.get('last_query', '')
-    search_column = session.get('search_column', DEFAULT_SEARCH_COLUMN)
+    # Removed search_column parameter
     
     if not query:
         return "No data to export", 400
@@ -1502,7 +1490,7 @@ def export():
     if not os.path.exists(csv_path):
         return "CSV file not found", 400
     
-    search_results = chunk_search_csv(csv_path, query, search_column)
+    search_results = chunk_search_csv(csv_path, query)
     if not search_results:
         return "No data to export", 400
     
