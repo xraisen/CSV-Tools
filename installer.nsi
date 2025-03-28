@@ -17,13 +17,18 @@ Section "Main"
   SetOutPath $INSTDIR
   File "dist\CSVProcessor.exe"
   File "dist\CSVSplitter.exe"
+  File "dist\CSVSearchAI.exe"
   File "assets\icon.ico"
   
-  ; Create shortcuts
+  ; Create shortcuts in Start Menu
   CreateDirectory "$SMPROGRAMS\CSV Tools"
   CreateShortcut "$SMPROGRAMS\CSV Tools\CSV Processor.lnk" "$INSTDIR\CSVProcessor.exe" "" "$INSTDIR\icon.ico"
   CreateShortcut "$SMPROGRAMS\CSV Tools\CSV Splitter.lnk" "$INSTDIR\CSVSplitter.exe" "" "$INSTDIR\icon.ico"
+  CreateShortcut "$SMPROGRAMS\CSV Tools\CSV Search AI.lnk" "$INSTDIR\CSVSearchAI.exe" "" "$INSTDIR\icon.ico"
+  
+  ; Create shortcuts on Desktop
   CreateShortcut "$DESKTOP\CSV Processor.lnk" "$INSTDIR\CSVProcessor.exe" "" "$INSTDIR\icon.ico"
+  CreateShortcut "$DESKTOP\CSV Search AI.lnk" "$INSTDIR\CSVSearchAI.exe" "" "$INSTDIR\icon.ico"
   
   ; Add to PATH
   EnVar::SetHKCU
@@ -36,14 +41,18 @@ SectionEnd
 Section "Uninstall"
   Delete "$INSTDIR\CSVProcessor.exe"
   Delete "$INSTDIR\CSVSplitter.exe"
+  Delete "$INSTDIR\CSVSearchAI.exe"
   Delete "$INSTDIR\icon.ico"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
   
   Delete "$SMPROGRAMS\CSV Tools\CSV Processor.lnk"
   Delete "$SMPROGRAMS\CSV Tools\CSV Splitter.lnk"
-  Delete "$DESKTOP\CSV Processor.lnk"
+  Delete "$SMPROGRAMS\CSV Tools\CSV Search AI.lnk"
   RMDir "$SMPROGRAMS\CSV Tools"
+  
+  Delete "$DESKTOP\CSV Processor.lnk"
+  Delete "$DESKTOP\CSV Search AI.lnk"
   
   ; Remove from PATH
   EnVar::SetHKCU

@@ -1,3 +1,5 @@
+---
+
 # 📊 CSV Tools by Jose 
 
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/xraisen/csv-tools/main.yml?style=for-the-badge)  
@@ -5,13 +7,13 @@
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20|%20macOS%20-lightgrey?style=for-the-badge)  
 ![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)  
 
-A **professional CSV processing suite** with an intuitive GUI—designed for **fast, efficient** CSV handling on Windows, and macOS.  
+A **professional CSV processing suite** with an intuitive GUI—designed for **fast, efficient** CSV handling on Windows, and macOS.
 
 ---
 
 ## ✨ Features  
 
-### 🔧 CSV Processor  (email/phone)
+### 🔧 CSV Processor (email/phone)
 ![CSV Processor](https://github.com/xraisen/CSV-Tools/blob/main/screenshots/Screenshot_1.png)
 
 - **Smart deduplication** – merge rows while retaining unique values  
@@ -27,6 +29,16 @@ A **professional CSV processing suite** with an intuitive GUI—designed for **f
 - **Real-time progress tracking**  
 - **Auto-organized output folders** with timestamps  
 - **Retains headers** in split files  
+
+### 🤖 CSV Search + AI (Gemini)
+![CSV Search + AI (Gemini)](https://github.com/xraisen/CSV-Tools/blob/main/screenshots/Screenshot_3.png)
+
+- **Advanced Search** – search large CSV files efficiently with chunk-based processing  
+- **Integrated AI Analysis** – leverages Gemini models to analyze and manipulate search results  
+- **Dynamic Data Manipulation** – supports sorting, filtering, deduplication, grouping, and counting based on AI instructions  
+- **User-friendly Web Interface** – combines a modern UI with AI-driven insights for seamless CSV data exploration  
+
+This tool is built as **csvsearchai.py** and is included in the overall CSV Tools suite.
 
 ---
 
@@ -49,7 +61,6 @@ choco install csv-tools
 
 # macOS (Homebrew)
 brew tap xraisen/tools && brew install csv-tools
-
 ```  
 
 ---
@@ -68,6 +79,13 @@ brew tap xraisen/tools && brew install csv-tools
 2. **Choose** split method: by rows or size  
 3. **Set** output preferences  
 4. **Execute** & track progress  
+
+### CSV Search + AI (Gemini)  
+1. **Upload** a CSV file and select the search column  
+2. **Perform** a search using keywords across the CSV data  
+3. **Analyze** search results with integrated AI powered by Gemini models  
+4. **Manipulate** data dynamically (sort, filter, deduplicate, group, or count) based on AI suggestions  
+5. **Export** the modified data or continue exploring via the web interface  
 
 ---
 
@@ -101,7 +119,7 @@ python build.py --platform=win,mac
 
 ## 🤝 Contributing  
 
-We welcome contributions!  
+We welcome contributions!
 
 1. Review our [Contribution Guidelines](CONTRIBUTING.md)  
 2. Fork the repository  
@@ -110,13 +128,13 @@ We welcome contributions!
 5. Push to branch (`git push origin feature/your-feature`)  
 6. Open a Pull Request  
 
-For major changes, open an issue first.  
+For major changes, please open an issue first.
 
 ---
 
 ## 📜 License  
 
-Distributed under the **MIT License**. See `LICENSE` for details.  
+Distributed under the **MIT License**. See `LICENSE` for details.
 
 ---
 
@@ -138,5 +156,8 @@ Distributed under the **MIT License**. See `LICENSE` for details.
 - **Streamlined installation steps**  
 - **Clearer project structure**  
 - **Polished formatting & spacing**  
+- **New CSV Search + AI (Gemini)**: Enhanced search capabilities and integrated AI analysis for dynamic CSV manipulation
 
-Let me know if you need any refinements! 🚀
+---
+
+Feel free to reach out if you have any questions or need further assistance. Enjoy using CSV Tools by Jose!

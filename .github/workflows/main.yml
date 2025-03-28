@@ -39,10 +39,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $scripts = @("csvprocessor.py", "csvsplitter.py")
+          $scripts = @("csvprocessor.py", "csvsplitter.py", "csvsearchai.py")
           foreach ($script in $scripts) {
               $name = [System.IO.Path]::GetFileNameWithoutExtension($script)
-              pyinstaller --onefile --windowed --name $name --distpath dist/windows $script
+              pyinstaller --onefile --noconsole --name $name --distpath dist/windows $script
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
@@ -51,7 +51,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          for script in csvprocessor.py csvsplitter.py; do
+          for script in csvprocessor.py csvsplitter.py csvsearchai.py; do
             name=$(basename "$script" .py)
             pyinstaller --onefile --name "$name" --distpath dist/macos "$script"
           done
