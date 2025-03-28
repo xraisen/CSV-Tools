@@ -1189,8 +1189,11 @@ def generate_table_html(search_results, page=1):
     summary = {'num_rows': len(search_results), 'sample_rows': sample_rows, 'columns': columns}
     return f"<h2>Search Results</h2>{table_html}", summary, total_pages
 
+//if __name__ == '__main__':
+//    def run_app():
+//        app.run(debug=True, use_reloader=False)
+//    threading.Thread(target=run_app).start()
+//    webbrowser.open('http://127.0.0.1:5000/')
 if __name__ == '__main__':
-    def run_app():
-        app.run(debug=True, use_reloader=False)
-    threading.Thread(target=run_app).start()
-    webbrowser.open('http://127.0.0.1:5000/')
+    port = int(os.environ.get("PORT", 5000))  # Use PORT env var or default to 5000
+    app.run(host="0.0.0.0", port=port, debug=False)  # Bind to 0.0.0.0 for external access
