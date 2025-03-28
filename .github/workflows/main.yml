@@ -33,6 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller pillow
+          pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 
       - name: 🏠 Build CSV Tools (Windows)
         if: runner.os == 'Windows'
@@ -42,7 +43,7 @@ jobs:
           $scripts = @("csvprocessor.py", "csvsplitter.py", "csvsearchai.py")
           foreach ($script in $scripts) {
               $name = [System.IO.Path]::GetFileNameWithoutExtension($script)
-              pyinstaller --onefile --noconsole --name $name --distpath dist/windows $script
+              pyinstaller --onefile --noconsole --hidden-import=google --hidden-import=google.auth --hidden-import=google.auth.transport --name $name --distpath dist/windows $script
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
@@ -53,14 +54,13 @@ jobs:
           set -e
           for script in csvprocessor.py csvsplitter.py csvsearchai.py; do
             name=$(basename "$script" .py)
-            pyinstaller --onefile --name "$name" --distpath dist/macos "$script"
+            pyinstaller --onefile --hidden-import=google --hidden-import=google.auth --hidden-import=google.auth.transport --name "$name" --distpath dist/macos "$script"
           done
 
       - name: 🛠️ Fix macOS Executables Permissions
         if: runner.os == 'macOS'
         shell: bash
-        run: |
-          chmod +x dist/macos/*
+        run: chmod +x dist/macos/*
 
       - name: 📚 Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -94,10 +94,10 @@ jobs:
       - name: 📋 Debug Downloaded Files
         run: |
           echo "Windows artifacts:"
-          ls -la releases/windows/windows/ || echo "No Windows files found"
+          ls -la releases/windows || echo "No Windows files found"
           echo "macOS artifacts:"
-          ls -la releases/macos/macos/ || echo "No macOS files found"
-          if [ -z "$(ls -A releases/windows/windows)" ] || [ -z "$(ls -A releases/macos/macos)" ]; then
+          ls -la releases/macos || echo "No macOS files found"
+          if [ -z "$(ls -A releases/windows)" ] || [ -z "$(ls -A releases/macos)" ]; then
             echo "Error: One or both artifact directories are empty"
             exit 1
           fi
@@ -106,8 +106,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            releases/windows/windows/*
-            releases/macos/macos/*
+            releases/windows/*
+            releases/macos/*
           tag_name: ${{ github.ref_name }}
           name: CSV Tools ${{ github.ref_name }}
           body: |
