@@ -408,6 +408,9 @@ HTML_TEMPLATE = """
             background: #1c2526; 
             color: #e0e0e0; 
         }
+        body.dark-mode .highlight {
+            background: #455a64; /* Dark grayish blue for dark mode */
+        }        
         .container { 
             max-width: 1200px; 
             margin: 0 auto; 
@@ -815,6 +818,8 @@ HTML_TEMPLATE = """
                         <input type="submit" value="Save">
                         <button type="button" id="cancelSettingsBtn">Cancel</button>
                     </div>
+                    <p style="font-size: 12px; text-align: center; color: gray;">Powered by Jose Espinosa by AE1O1, owned by Ahmed Elhadi © 2025\njpm.onestop@gmail.com</p>
+
                 </form>
             </div>
         </div>
