@@ -78,7 +78,7 @@ jobs:
       - name: 📚 Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: csv-tools-${{ matrix.os }}
+          name: csv-tools-${{ matrix.os == 'windows-latest' && 'windows' || 'macos' }}
           path: dist/${{ matrix.os == 'windows-latest' && 'windows' || 'macos' }}/*
           retention-days: 5
 
