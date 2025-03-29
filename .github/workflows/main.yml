@@ -1,4 +1,4 @@
-name: Build CSV Tools (Windows & macOS)
+name: Build CSV Tools (Windows & macOS) 
 
 permissions:
   contents: write
@@ -39,7 +39,6 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller pillow
           pip install pandas Flask Flask-Session google google-generativeai google-genai google-ai-generativelanguage google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
-
       - name: 🏠 Build CSV Tools (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -54,9 +53,8 @@ jobs:
           }
           echo "Windows Build Output:"
           Get-ChildItem dist/windows -Recurse
-
       - name: 🍏 Build CSV Tools (macOS)
-        if: matrix.os == 'macos-latest'
+        if: runner.os == 'macos-latest'
         shell: bash
         env:
           LC_ALL: en_US.UTF-8
@@ -100,14 +98,13 @@ jobs:
           done
           echo "macOS Build Output:"
           ls -la dist/macos/
-
       - name: 📚 Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: csv-tools-${{ matrix.os == 'windows-latest' ? 'windows-latest' : 'macos-latest' }}
+          # This will name the artifact "csv-tools-windows-latest" or "csv-tools-macos-latest"
+          name: csv-tools-${{ matrix.os }}
           path: dist/${{ matrix.os == 'windows-latest' ? 'windows' : 'macos' }}/*
           retention-days: 5
-
 
   release:
     needs: build
@@ -141,7 +138,6 @@ jobs:
             echo "Error: One or both artifact directories are empty"
             exit 1
           fi
-
       - name: 📦 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
