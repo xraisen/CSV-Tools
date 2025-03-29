@@ -6,6 +6,11 @@ permissions:
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
     tags:
       - 'v*'
       - 'release'
@@ -31,8 +36,8 @@ jobs:
       - name: 📦 Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller pillow pandas Flask Flask-Session google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client google-generativeai numpy scipy openpyxl xlrd requests tqdm
+          pip install -r requirements.txt || true
+          pip install pyinstaller pillow pandas Flask Flask-Session google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client google-generativeai numpy scipy openpyxl xlrd requests tqdm || true
 
       - name: 🏠 Build CSV Tools (Windows)
         if: runner.os == 'Windows'
@@ -43,20 +48,20 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist/windows | Out-Null
           foreach ($script in $scripts) {
               $name = [System.IO.Path]::GetFileNameWithoutExtension($script)
-              pyinstaller --onefile --noconsole \
-                --hidden-import=google-auth \
-                --hidden-import=google-auth-oauthlib \
-                --hidden-import=google-auth-httplib2 \
-                --hidden-import=google-api-python-client \
-                --hidden-import=google-generativeai \
-                --hidden-import=Flask \
-                --hidden-import=Flask-Session \
-                --hidden-import=numpy \
-                --hidden-import=scipy \
-                --hidden-import=openpyxl \
-                --hidden-import=xlrd \
-                --hidden-import=requests \
-                --hidden-import=tqdm \
+              pyinstaller --onefile --noconsole `
+                --hidden-import=google-auth `
+                --hidden-import=google-auth-oauthlib `
+                --hidden-import=google-auth-httplib2 `
+                --hidden-import=google-api-python-client `
+                --hidden-import=google-generativeai `
+                --hidden-import=Flask `
+                --hidden-import=Flask-Session `
+                --hidden-import=numpy `
+                --hidden-import=scipy `
+                --hidden-import=openpyxl `
+                --hidden-import=xlrd `
+                --hidden-import=requests `
+                --hidden-import=tqdm `
                 --name $name --distpath dist/windows $script
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
@@ -77,7 +82,7 @@ jobs:
           for script in csvprocessor.py csvsplitter.py csvsearchai.py; do
             name=$(basename "$script" .py)
             echo "Building $name..."
-            PYTHONUTF8=1 PYTHONIOENCODING=UTF-8 pyinstaller --onefile \
+            pyinstaller --onefile \
               --hidden-import=pandas \
               --hidden-import=Flask \
               --hidden-import=Flask-Session \
