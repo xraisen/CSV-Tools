@@ -106,7 +106,7 @@ jobs:
         with:
           # This will name the artifact "csv-tools-windows-latest" or "csv-tools-macos-latest"
           name: csv-tools-${{ matrix.os }}
-          path: "dist/${{ matrix.os == 'windows-latest' ? 'windows' : 'macos' }}/*"
+          path: "dist/${{ matrix.os == 'windows-latest' && 'windows' || 'macos' }}/*"
           retention-days: 5
 
   release:
