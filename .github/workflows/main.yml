@@ -33,7 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller pillow
-          pip install google google-generativeai google-genai google-ai-generativelanguage google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+          pip install pandas Flask Flask-Session google google-generativeai google-genai google-ai-generativelanguage google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 
       - name: 🏠 Build CSV Tools (Windows)
         if: runner.os == 'Windows'
@@ -77,8 +77,17 @@ jobs:
             name=$(basename "$script" .py)
             echo "Building $name with enforced UTF-8 settings..."
             PYTHONUTF8=1 PYTHONIOENCODING=UTF-8 pyinstaller --onefile \
+              --hidden-import=pandas \
+              --hidden-import=Flask \
+              --hidden-import=Flask-Session \
               --hidden-import=google \
-              --hidden-import=google.auth \
+              --hidden-import=google-auth \
+              --hidden-import=google-auth-oauthlib \
+              --hidden-import=google-auth-httplib2 \
+              --hidden-import=google-api-python-client \
+              --hidden-import=google-generativeai \
+              --hidden-import=google-genai \
+              --hidden-import=google-ai-generativelanguage \
               --hidden-import=google.auth.transport \
               --name "$name" \
               --distpath dist/macos \

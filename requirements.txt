@@ -1,10 +1,12 @@
 pandas
-google
 Flask
 Flask-Session
+google
 google-auth
 google-auth-oauthlib
 google-auth-httplib2
 google-api-python-client
 google-generativeai
+google-genai 
+google-ai-generativelanguage
 
