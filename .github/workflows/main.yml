@@ -8,13 +8,12 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'  # This will trigger on tags like v1.0.0
   pull_request:
     branches:
       - main
-    tags:
-      - 'v*'
-      - 'release'
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger
 
 jobs:
   build:
@@ -109,15 +108,48 @@ jobs:
           path: "dist/${{ matrix.os == 'windows-latest' && 'windows' || 'macos' }}/*"
           retention-days: 5
 
-  release:
+  debug-info:
     needs: build
     runs-on: ubuntu-latest
+    steps:
+      - name: 📊 Debug GitHub Context
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Ref name: ${{ github.ref_name }}"
+          echo "Release condition would be: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}"
+          echo "Is ref a tag? ${{ startsWith(github.ref, 'refs/tags/') }}"
+      
+      - name: ✅ Show Secret Availability
+        run: |
+          echo "RELEASE_TOKEN is ${{ secrets.RELEASE_TOKEN != '' && 'available' || 'NOT available' }}"
+
+  release:
+    needs: [build, debug-info]
+    runs-on: ubuntu-latest
+    # Modified to be more permissive for testing
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: 📣 Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+  
+      - name: 📅 Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+        
+      - name: 🏷️ Set Release Version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # If triggered by a tag, use the tag name
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            # If manually triggered, create a date-based version
+            echo "version=release-${{ steps.date.outputs.date }}" >> $GITHUB_OUTPUT
+          fi
+          echo "Using version: $(cat $GITHUB_OUTPUT | grep version | cut -d= -f2)"
   
       - name: ⬇️ Download Windows Artifacts
         uses: actions/download-artifact@v4
@@ -134,19 +166,22 @@ jobs:
       - name: 📦 Package Build Artifacts
         run: |
           mkdir -p releases/package
-          zip -r releases/package/csv-tools-${{ github.ref_name }}.zip releases/windows releases/macos
+          echo "Creating zip file with version: ${{ steps.version.outputs.version }}"
+          zip -r releases/package/csv-tools-${{ steps.version.outputs.version }}.zip releases/windows releases/macos
   
       - name: 📋 Debug Packaged Artifact
-        run: ls -la releases/package
+        run: |
+          ls -la releases/package
+          echo "Will create release with tag: ${{ steps.version.outputs.version }}"
   
       - name: 📦 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: releases/package/csv-tools-${{ github.ref_name }}.zip
-          tag_name: ${{ github.ref_name }}
-          name: CSV Tools ${{ github.ref_name }}
+          files: releases/package/csv-tools-${{ steps.version.outputs.version }}.zip
+          tag_name: ${{ steps.version.outputs.version }}
+          name: CSV Tools ${{ steps.version.outputs.version }}
           body: |
-            ## CSV Tools Release ${{ github.ref_name }}
+            ## CSV Tools Release ${{ steps.version.outputs.version }}
             This release includes binaries for:
             - Windows (64-bit)
             - macOS
@@ -155,7 +190,7 @@ jobs:
             ### Changes
             Automatically generated release notes follow below.
           draft: false
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          prerelease: ${{ contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
