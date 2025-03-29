@@ -9,11 +9,11 @@ on:
     branches:
       - main
     tags:
-      - 'v*'  # This will trigger on tags like v1.0.0
+      - 'v*'  # Triggers on tags like v1.0.0
   pull_request:
     branches:
       - main
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
   build:
@@ -23,23 +23,23 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: 📣 Checkout Repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🐍 Set Up Python
+      - name: Set Up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: 'pip'
 
-      - name: 📦 Install Dependencies
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller pillow
           pip install pandas Flask Flask-Session google google-generativeai google-genai google-ai-generativelanguage google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 
-      - name: 🏠 Build CSV Tools (Windows)
+      - name: Build CSV Tools (Windows)
         if: ${{ matrix.os == 'windows-latest' }}
         shell: pwsh
         run: |
@@ -54,141 +54,81 @@ jobs:
           echo "Windows Build Output:"
           Get-ChildItem dist/windows -Recurse
 
-      - name: 🍏 Build CSV Tools (macOS)
+      - name: Build CSV Tools (macOS)
         if: ${{ matrix.os == 'macos-latest' }}
         shell: bash
-        env:
-          LC_ALL: en_US.UTF-8
-          LANG: en_US.UTF-8
-          PYTHONIOENCODING: UTF-8
-          PYTHONUTF8: 1  # Explicitly enable Python UTF-8 Mode
         run: |
-          set -ex  # Enable verbose output for debugging
-          # Comprehensive encoding setup
-          export LC_ALL=en_US.UTF-8
-          export LANG=en_US.UTF-8
-          export PYTHONIOENCODING=UTF-8
-          
-          # Diagnostic output
-          echo "Current Locale Settings:"
-          locale
-          echo "Python Encoding Configuration:"
-          python3 -c "import sys; print(f'Default: {sys.getdefaultencoding()}, Stdout: {sys.stdout.encoding}, Filesystem: {sys.getfilesystemencoding()}')"
-          
-          # Build process
           mkdir -p dist/macos
           for script in csvprocessor.py csvsplitter.py csvsearchai.py; do
             name=$(basename "$script" .py)
-            echo "Building $name with enforced UTF-8 settings..."
-            PYTHONUTF8=1 PYTHONIOENCODING=UTF-8 pyinstaller --onefile \
-              --hidden-import=pandas \
-              --hidden-import=flask \
-              --hidden-import=flask_session \
-              --hidden-import=google.auth \
-              --hidden-import=google_auth_oauthlib \
-              --hidden-import=google_auth_httplib2 \
-              --hidden-import=googleapiclient \
-              --hidden-import=google.generativeai \
-              --hidden-import=google.ai.generativelanguage \
-              --hidden-import=google.auth.transport \
-              --name "$name" \
-              --distpath dist/macos \
-              "$script"
+            pyinstaller --onefile --hidden-import=pandas --hidden-import=flask --hidden-import=flask_session --hidden-import=google.auth --hidden-import=google_auth_oauthlib --hidden-import=google_auth_httplib2 --hidden-import=googleapiclient --hidden-import=google.generativeai --hidden-import=google.ai.generativelanguage --hidden-import=google.auth.transport --name "$name" --distpath dist/macos "$script"
           done
           echo "macOS Build Output:"
           ls -la dist/macos/
 
-      - name: 📚 Upload Build Artifacts
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          # This will name the artifact "csv-tools-windows-latest" or "csv-tools-macos-latest"
           name: csv-tools-${{ matrix.os }}
           path: "dist/${{ matrix.os == 'windows-latest' && 'windows' || 'macos' }}/*"
           retention-days: 5
 
-  debug-info:
+  release:
     needs: build
     runs-on: ubuntu-latest
-    steps:
-      - name: 📊 Debug GitHub Context
-        run: |
-          echo "Event name: ${{ github.event_name }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Ref name: ${{ github.ref_name }}"
-          echo "Release condition would be: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}"
-          echo "Is ref a tag? ${{ startsWith(github.ref, 'refs/tags/') }}"
-      
-      - name: ✅ Show Secret Availability
-        run: |
-          echo "RELEASE_TOKEN is ${{ secrets.RELEASE_TOKEN != '' && 'available' || 'NOT available' }}"
-
-  release:
-    needs: [build, debug-info]
-    runs-on: ubuntu-latest
-    # Modified to be more permissive for testing
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: 📣 Checkout Repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-  
-      - name: 📅 Get current date
+
+      - name: Get Current Date
         id: date
         run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-        
-      - name: 🏷️ Set Release Version
+
+      - name: Set Release Version
         id: version
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            # If triggered by a tag, use the tag name
             echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           else
-            # If manually triggered, create a date-based version
-            echo "version=release-${{ steps.date.outputs.date }}" >> $GITHUB_OUTPUT
+            echo "version=Release-${{ steps.date.outputs.date }}" >> $GITHUB_OUTPUT
           fi
-          echo "Using version: $(cat $GITHUB_OUTPUT | grep version | cut -d= -f2)"
-  
-      - name: ⬇️ Download Windows Artifacts
+
+      - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
           name: csv-tools-windows-latest
           path: releases/windows
-  
-      - name: ⬇️ Download macOS Artifacts
+
+      - name: Download macOS Artifacts
         uses: actions/download-artifact@v4
         with:
           name: csv-tools-macos-latest
           path: releases/macos
-  
-      - name: 📦 Package Build Artifacts
-        run: |
-          mkdir -p releases/package
-          echo "Creating zip file with version: ${{ steps.version.outputs.version }}"
-          zip -r releases/package/csv-tools-${{ steps.version.outputs.version }}.zip releases/windows releases/macos
-  
-      - name: 📋 Debug Packaged Artifact
-        run: |
-          ls -la releases/package
-          echo "Will create release with tag: ${{ steps.version.outputs.version }}"
-  
-      - name: 📦 Create GitHub Release
+
+      - name: Create GitHub Release with Individual Files
         uses: softprops/action-gh-release@v2
         with:
-          files: releases/package/csv-tools-${{ steps.version.outputs.version }}.zip
+          files: |
+            releases/windows/csvprocessor.exe
+            releases/windows/csvsplitter.exe
+            releases/windows/csvsearchai.exe
+            releases/macos/csvprocessor
+            releases/macos/csvsplitter
+            releases/macos/csvsearchai
           tag_name: ${{ steps.version.outputs.version }}
           name: CSV Tools ${{ steps.version.outputs.version }}
           body: |
             ## CSV Tools Release ${{ steps.version.outputs.version }}
-            This release includes binaries for:
-            - Windows (64-bit)
-            - macOS
+            This release includes individual binaries for:
+            - Windows (64-bit): `csvprocessor.exe`, `csvsplitter.exe`, `csvsearchai.exe`
+            - macOS: `csvprocessor`, `csvsplitter`, `csvsearchai`
             ### Downloads
-            See attached package below.
-            ### Changes
-            Automatically generated release notes follow below.
+            Download the specific tool you need from the assets below.
           draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+          prerelease: false
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
