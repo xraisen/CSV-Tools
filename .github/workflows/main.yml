@@ -108,11 +108,27 @@ jobs:
           path: "dist/${{ matrix.os == 'windows-latest' && 'windows' || 'macos' }}/*"
           retention-days: 5
 
-  release:
+  debug-info:
     needs: build
     runs-on: ubuntu-latest
-    # Modified condition to be clearer
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: 📊 Debug GitHub Context
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Ref name: ${{ github.ref_name }}"
+          echo "Release condition would be: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}"
+          echo "Is ref a tag? ${{ startsWith(github.ref, 'refs/tags/') }}"
+      
+      - name: ✅ Show Secret Availability
+        run: |
+          echo "RELEASE_TOKEN is ${{ secrets.RELEASE_TOKEN != '' && 'available' || 'NOT available' }}"
+
+  release:
+    needs: [build, debug-info]
+    runs-on: ubuntu-latest
+    # Modified to be more permissive for testing
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     steps:
       - name: 📣 Checkout Repository
         uses: actions/checkout@v4
@@ -133,6 +149,7 @@ jobs:
             # If manually triggered, create a date-based version
             echo "version=release-${{ steps.date.outputs.date }}" >> $GITHUB_OUTPUT
           fi
+          echo "Using version: $(cat $GITHUB_OUTPUT | grep version | cut -d= -f2)"
   
       - name: ⬇️ Download Windows Artifacts
         uses: actions/download-artifact@v4
@@ -149,10 +166,13 @@ jobs:
       - name: 📦 Package Build Artifacts
         run: |
           mkdir -p releases/package
+          echo "Creating zip file with version: ${{ steps.version.outputs.version }}"
           zip -r releases/package/csv-tools-${{ steps.version.outputs.version }}.zip releases/windows releases/macos
   
       - name: 📋 Debug Packaged Artifact
-        run: ls -la releases/package
+        run: |
+          ls -la releases/package
+          echo "Will create release with tag: ${{ steps.version.outputs.version }}"
   
       - name: 📦 Create GitHub Release
         uses: softprops/action-gh-release@v2
