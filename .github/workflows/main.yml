@@ -33,7 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller pillow
-          pip install google-generativeai google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+          pip install google google-generativeai google-genai google-ai-generativelanguage google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 
       - name: 🏠 Build CSV Tools (Windows)
         if: runner.os == 'Windows'
