@@ -32,8 +32,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller pillow
-          pip install pandas Flask Flask-Session google google-generativeai google-genai google-ai-generativelanguage google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+          pip install pyinstaller pillow pandas Flask Flask-Session google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client google-generativeai
 
       - name: 🏠 Build CSV Tools (Windows)
         if: runner.os == 'Windows'
@@ -44,7 +43,15 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist/windows | Out-Null
           foreach ($script in $scripts) {
               $name = [System.IO.Path]::GetFileNameWithoutExtension($script)
-              pyinstaller --onefile --noconsole --hidden-import=google --hidden-import=google.auth --hidden-import=google.auth.transport --name $name --distpath dist/windows $script
+              pyinstaller --onefile --noconsole \
+                --hidden-import=google-auth \
+                --hidden-import=google-auth-oauthlib \
+                --hidden-import=google-auth-httplib2 \
+                --hidden-import=google-api-python-client \
+                --hidden-import=google-generativeai \
+                --hidden-import=Flask \
+                --hidden-import=Flask-Session \
+                --name $name --distpath dist/windows $script
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           echo "Windows Build Output:"
@@ -57,38 +64,22 @@ jobs:
           LC_ALL: en_US.UTF-8
           LANG: en_US.UTF-8
           PYTHONIOENCODING: UTF-8
-          PYTHONUTF8: 1  # Explicitly enable Python UTF-8 Mode
+          PYTHONUTF8: 1
         run: |
-          set -ex  # Enable verbose output for debugging
-          # Comprehensive encoding setup
-          export LC_ALL=en_US.UTF-8
-          export LANG=en_US.UTF-8
-          export PYTHONIOENCODING=UTF-8
-          
-          # Diagnostic output
-          echo "Current Locale Settings:"
-          locale
-          echo "Python Encoding Configuration:"
-          python3 -c "import sys; print(f'Default: {sys.getdefaultencoding()}, Stdout: {sys.stdout.encoding}, Filesystem: {sys.getfilesystemencoding()}')"
-          
-          # Build process
+          set -ex
           mkdir -p dist/macos
           for script in csvprocessor.py csvsplitter.py csvsearchai.py; do
             name=$(basename "$script" .py)
-            echo "Building $name with enforced UTF-8 settings..."
+            echo "Building $name..."
             PYTHONUTF8=1 PYTHONIOENCODING=UTF-8 pyinstaller --onefile \
               --hidden-import=pandas \
               --hidden-import=Flask \
               --hidden-import=Flask-Session \
-              --hidden-import=google \
               --hidden-import=google-auth \
               --hidden-import=google-auth-oauthlib \
               --hidden-import=google-auth-httplib2 \
               --hidden-import=google-api-python-client \
               --hidden-import=google-generativeai \
-              --hidden-import=google-genai \
-              --hidden-import=google-ai-generativelanguage \
-              --hidden-import=google.auth.transport \
               --name "$name" \
               --distpath dist/macos \
               "$script"
