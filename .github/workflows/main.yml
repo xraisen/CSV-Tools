@@ -82,16 +82,14 @@ jobs:
             echo "Building $name with enforced UTF-8 settings..."
             PYTHONUTF8=1 PYTHONIOENCODING=UTF-8 pyinstaller --onefile \
               --hidden-import=pandas \
-              --hidden-import=Flask \
+              --hidden-import=flask \
               --hidden-import=flask_session \
-              --hidden-import=google \
-              --hidden-import=google-auth \
-              --hidden-import=google-auth-oauthlib \
-              --hidden-import=google-auth-httplib2 \
-              --hidden-import=google-api-python-client \
-              --hidden-import=google-generativeai \
-              --hidden-import=google-genai \
-              --hidden-import=google-ai-generativelanguage \
+              --hidden-import=google.auth \
+              --hidden-import=google_auth_oauthlib \
+              --hidden-import=google_auth_httplib2 \
+              --hidden-import=googleapiclient \
+              --hidden-import=google.generativeai \
+              --hidden-import=google.ai.generativelanguage \
               --hidden-import=google.auth.transport \
               --name "$name" \
               --distpath dist/macos \
