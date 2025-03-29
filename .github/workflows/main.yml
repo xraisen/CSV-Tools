@@ -53,12 +53,36 @@ jobs:
       - name: 🍏 Build CSV Tools (macOS)
         if: runner.os == 'macOS'
         shell: bash
+        env:
+          LC_ALL: en_US.UTF-8
+          LANG: en_US.UTF-8
+          PYTHONIOENCODING: UTF-8
+          PYTHONUTF8: 1  # Explicitly enable Python UTF-8 Mode
         run: |
-          set -e
+          set -ex  # Enable verbose output for debugging
+          # Comprehensive encoding setup
+          export LC_ALL=en_US.UTF-8
+          export LANG=en_US.UTF-8
+          export PYTHONIOENCODING=UTF-8
+          
+          # Diagnostic output
+          echo "Current Locale Settings:"
+          locale
+          echo "Python Encoding Configuration:"
+          python3 -c "import sys; print(f'Default: {sys.getdefaultencoding()}, Stdout: {sys.stdout.encoding}, Filesystem: {sys.getfilesystemencoding()}')"
+          
+          # Build process
           mkdir -p dist/macos
           for script in csvprocessor.py csvsplitter.py csvsearchai.py; do
             name=$(basename "$script" .py)
-            pyinstaller --onefile --hidden-import=google --hidden-import=google.auth --hidden-import=google.auth.transport --name "$name" --distpath dist/macos "$script"
+            echo "Building $name with enforced UTF-8 settings..."
+            PYTHONUTF8=1 PYTHONIOENCODING=UTF-8 pyinstaller --onefile \
+              --hidden-import=google \
+              --hidden-import=google.auth \
+              --hidden-import=google.auth.transport \
+              --name "$name" \
+              --distpath dist/macos \
+              "$script"
           done
           echo "macOS Build Output:"
           ls -la dist/macos/

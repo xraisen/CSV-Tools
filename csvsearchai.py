@@ -14,6 +14,8 @@ import shutil
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'your_secure_secret_key'  # Replace with a secure key
+app.config['DEBUG'] = True
+app.config['PROPAGATE_EXCEPTIONS'] = True
 
 # Global variables
 DEFAULT_CSV_PATH = r""  # Set a default CSV path if needed
@@ -99,6 +101,48 @@ def clear_api_key(exception):
     if has_request_context():
         if 'api_key' in session:
             session.pop('api_key', None)
+        # Clean up any combined columns when session ends
+        if 'combined_columns' in session:
+            session.pop('combined_columns', None)
+        # Clear all custom columns when session ends
+        if 'custom_columns' in session:
+            session.pop('custom_columns', None)
+
+# --- Restore Original Data Function ---
+@app.route('/restore', methods=['POST'])
+def restore_original():
+    csv_path = session.get('csv_path', DEFAULT_CSV_PATH)
+    if not csv_path:
+        return jsonify({'error': 'No CSV file selected'}), 400
+    if not os.path.exists(csv_path):
+        return jsonify({'error': f'CSV file not found at path: {csv_path}'}), 400
+    
+    # Clear any combined columns from session
+    if 'combined_columns' in session:
+        session.pop('combined_columns', None)
+    
+    # Reload original data
+    df = load_csv_cached(csv_path)
+    if df.empty:
+        return jsonify({'error': 'No data to restore'}), 400
+    
+    # Convert to our search results format
+    search_results = []
+    for idx, row in df.iterrows():
+        search_results.append({
+            'row_index': idx,
+            'data': row.to_dict(),
+            'matching_columns': []
+        })
+    
+    # Update session with original data
+    session['current_results'] = search_results
+    
+    return jsonify({
+        'status': 'success',
+        'message': 'Original data restored',
+        'data': search_results
+    })
 
 # --- Optimized CSV Search Function Using Caching and Vectorized Operations ---
 def chunk_search_csv(csv_path, search_text):
@@ -130,23 +174,27 @@ def chunk_search_csv(csv_path, search_text):
 
 # --- Updated AI Response Function ---
 def get_ai_response(search_summary, user_query, last_query):
+    """Enhanced AI response with better error handling and action parsing."""
+    # Validate inputs first
+    if not isinstance(search_summary, dict) or not all(k in search_summary for k in ['columns', 'num_rows', 'sample_rows']):
+        return {
+            "response": "<div class='ai-error'><div class='ai-header'>Error</div><div class='ai-content'>Invalid search summary format</div></div>",
+            "action": None,
+            "chat_html": ""
+        }
+    
     api_key = session.get('api_key')
     model = session.get('model', 'gemini-2.0-flash-thinking-exp-01-21')
     if not api_key:
         return {
-            "response": (
-                "<div class='ai-error'><div class='ai-header'>Error</div>"
-                "<div class='ai-content'>API key not set. Please configure it in Settings.</div></div>"
-            ),
+            "response": "<div class='ai-error'><div class='ai-header'>Error</div><div class='ai-content'>API key not set. Please configure it in Settings.</div></div>",
             "action": None,
             "chat_html": ""
         }
+    
     if search_summary['num_rows'] == 0:
         return {
-            "response": (
-                "<div class='ai-info'><div class='ai-header'>Information</div>"
-                "<div class='ai-content'>No search results to analyze.</div></div>"
-            ),
+            "response": "<div class='ai-info'><div class='ai-header'>Information</div><div class='ai-content'>No search results to analyze.</div></div>",
             "action": None,
             "chat_html": ""
         }
@@ -172,7 +220,10 @@ def get_ai_response(search_summary, user_query, last_query):
         "**Examples:**\n"
         "1. Query: 'How many are there on search results containing {last_query}?' Response: "
         "<div class='ai-header'>Row Count</div><div class='ai-content'>There are {num_rows} rows in the search results.</div>\n"
-        "2. Query: 'How many emails are there?' Response: Use action {{\"action\": \"count\", \"condition\": \"email is not empty\"}}.\n"
+        "2. Query: 'How many emails are there?' Response: "
+        "<div class='ai-header'>Email Count</div><div class='ai-content'>There are X emails in the search results.</div>\n"
+        "3. Query: 'How many phone numbers are there?' Response: "
+        "<div class='ai-header'>Phone Count</div><div class='ai-content'>There are X phone numbers in columns: {', '.join([c for c in columns if 'phone' in c.lower()])}.</div>\n"
         "3. Query: 'Combine all emails containing {last_query} and name the column header \"EMAIL SHEETS\"' Response: "
         "<div class='ai-header'>Combining Emails</div><div class='ai-content'>A new column \"EMAIL SHEETS\" has been added with emails containing \"{last_query}\".</div>"
         "<script type='ai-action'>{{\"action\": \"combine\", \"column\": \"email\", \"condition\": \"contains {last_query}\", \"new_column\": \"EMAIL SHEETS\"}}</script>\n"
@@ -195,20 +246,34 @@ def get_ai_response(search_summary, user_query, last_query):
         model_instance = genai.GenerativeModel(model)
         response = model_instance.generate_content(input_text)
         response_text = response.text
+        
+        # Enhanced response cleaning and formatting
         response_text = re.sub(r'^```html\s*\n', '', response_text, flags=re.MULTILINE)
         response_text = re.sub(r'\n```$', '', response_text, flags=re.MULTILINE)
-
+        
+        # Standardize action script formatting
         script_start = response_text.find("<script type='ai-action'>")
         script_end = response_text.find("</script>", script_start) + 9 if script_start != -1 else -1
+        
         if script_start != -1 and script_end != -1:
-            before_script = response_text[:script_start]
+            # Extract and validate action script
             script_content = response_text[script_start:script_end]
-            after_script = response_text[script_end:]
-            before_script = before_script.replace('\n', '<br>')
-            after_script = after_script.replace('\n', '<br>')
-            response_text = before_script + script_content + after_script
-        else:
-            response_text = response_text.replace('\n', '<br>')
+            try:
+                action = json.loads(script_content[script_content.find('>')+1:script_content.rfind('<')].strip())
+                if not isinstance(action, dict) or 'action' not in action:
+                    script_content = ""
+            except json.JSONDecodeError:
+                script_content = ""
+                
+            # Format response with consistent spacing
+            before_script = response_text[:script_start].strip()
+            after_script = response_text[script_end:].strip()
+            
+            response_text = f"{before_script}\n\n{script_content}\n\n{after_script}"
+        
+        # Standardize line breaks and spacing
+        response_text = response_text.replace('\n\n', '<br><br>')
+        response_text = response_text.replace('\n', '<br>')
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_response = (
@@ -268,12 +333,61 @@ def manipulate_results(search_results, action):
                     reverse=(order.lower() == 'descending')
                 )
         elif action['action'] == 'filter':
-            columns = action.get('columns', [])
-            if columns:
+            conditions = action.get('conditions', [])
+            relation = action.get('relation', 'AND')
+            if conditions:
+                filtered_results = []
                 for result in search_results:
-                    new_data = {col: result['data'][col] for col in columns if col in result['data']}
+                    match = True
+                    for condition in conditions:
+                        column = condition.get('column')
+                        cond = condition.get('condition', '')
+                        if column in result['data']:
+                            if 'contains' in cond:
+                                value = cond.split('contains')[1].strip().lower()
+                                if value not in str(result['data'][column]).lower():
+                                    match = False
+                                    if relation == 'OR':
+                                        match = True
+                                        break
+                            elif 'is not empty' in cond:
+                                if not str(result['data'][column]).strip():
+                                    match = False
+                                    if relation == 'OR':
+                                        match = True
+                                        break
+                    if match:
+                        filtered_results.append(result)
+                search_results = filtered_results
+        elif action['action'] == 'select_columns':
+            columns = [col.strip('\"').strip() for col in action.get('columns', [])]
+            if columns:
+                # Validate requested columns exist in data
+                available_columns = list(search_results[0]['data'].keys()) if search_results else []
+            missing_columns = [col for col in columns if col not in available_columns]
+            
+            if missing_columns:
+                return [{
+                    'row_index': 0,
+                    'data': {"Error": f"Columns not found: {', '.join(missing_columns)}"},
+                    'matching_columns': []
+                }]
+                
+            # Always update session with selected columns
+            session['columns'] = columns
+            
+            # Update search results with selected columns
+            filtered_results = []
+            for result in search_results:
+                new_data = {col: result['data'][col] for col in columns if col in result['data']}
+                if new_data:  # Only include results that have the requested columns
                     result['data'] = new_data
                     result['matching_columns'] = [col for col in result['matching_columns'] if col in columns]
+                    filtered_results.append(result)
+            
+            search_results = filtered_results
+            # Force reload of CSV in next search to ensure column selections persist
+            csv_cache.clear()
         elif action['action'] == 'deduplicate':
             column = action.get('column')
             if column in search_results[0]['data']:
@@ -345,33 +459,123 @@ def manipulate_results(search_results, action):
                     'matching_columns': []
                 }]
         elif action['action'] == 'combine':
-            # FIX: Combine action now creates the new column and removes the original column.
+            # Validate column names before combining
             column = action.get('column')
             condition = action.get('condition', '')
             new_column = action.get('new_column')
-            if column in search_results[0]['data'] and 'contains' in condition:
-                parts = condition.split()
-                contains_index = parts.index('contains')
-                value = ' '.join(parts[contains_index + 1:]).lower()
-                for result in search_results:
-                    # If condition met, copy value; else assign blank.
+            
+            if not column or not new_column:
+                return [{
+                    'row_index': 0,
+                    'data': {'Error': 'Both column and new_column must be specified for combine action'},
+                    'matching_columns': []
+                }]
+                
+            if column not in search_results[0]['data']:
+                return [{
+                    'row_index': 0,
+                    'data': {'Error': f"Column '{column}' not found in data"},
+                    'matching_columns': []
+                }]
+                
+            if 'contains' not in condition:
+                return [{
+                    'row_index': 0,
+                    'data': {'Error': 'Combine action requires a "contains" condition'},
+                    'matching_columns': []
+                }]
+                
+            parts = condition.split()
+            contains_index = parts.index('contains')
+            value = ' '.join(parts[contains_index + 1:]).lower()
+            
+            # Store combined column in session for later cleanup
+            if 'combined_columns' not in session:
+                session['combined_columns'] = []
+            session['combined_columns'].append(new_column)
+            
+            # Update the in-memory DataFrame cache
+            csv_path = session.get('csv_path')
+            if csv_path:
+                df = load_csv_cached(csv_path)
+                for idx, result in enumerate(search_results):
                     if value in str(result['data'][column]).lower():
-                        result['data'][new_column] = result['data'][column]
+                        df.at[result['row_index'], new_column] = result['data'][column]
                     else:
-                        result['data'][new_column] = ""
-                    # Remove original column to display only new combined column.
-                    if column in result['data']:
-                        del result['data'][column]
-                    if column in result['matching_columns']:
-                        result['matching_columns'].remove(column)
+                        df.at[result['row_index'], new_column] = ""
+                # Save the modified DataFrame back to CSV
+                df.to_csv(csv_path, index=False)
+                # Clear cache to force reload
+                csv_cache.clear()
+                # Update session with new columns
+                if 'columns' in session:
+                    session['columns'] = list(df.columns)
+            
+            for result in search_results:
+                if value in str(result['data'][column]).lower():
+                    result['data'][new_column] = result['data'][column]
+                else:
+                    result['data'][new_column] = ""
+                
+                if new_column not in result['matching_columns']:
+                    result['matching_columns'].append(new_column)
         elif action['action'] == 'merge':
             columns_to_merge = action.get('columns', [])
             new_column = action.get('new_column')
             valid_columns = [col for col in columns_to_merge if col in search_results[0]['data']]
             if valid_columns:
+                # Update the in-memory DataFrame cache
+                csv_path = session.get('csv_path')
+                if csv_path:
+                    df = load_csv_cached(csv_path)
+                    for idx, result in enumerate(search_results):
+                        merged_value = ', '.join([str(result['data'].get(col, '')) for col in valid_columns if result['data'].get(col, '')])
+                        df.at[result['row_index'], new_column] = merged_value
+                    # Save the modified DataFrame back to CSV
+                    df.to_csv(csv_path, index=False)
+                    # Clear cache to force reload
+                    csv_cache.clear()
+                    # Update session with new columns
+                    if 'columns' in session:
+                        session['columns'] = list(df.columns)
+                
+                # Update search results
                 for result in search_results:
                     merged_value = ', '.join([str(result['data'].get(col, '')) for col in valid_columns if result['data'].get(col, '')])
                     result['data'][new_column] = merged_value
+        elif action['action'] == 'remove_no_match_columns':
+            # Remove all columns that didn't match the search query
+            removed_columns = set()
+            for result in search_results:
+                # Get all columns that didn't match
+                no_match_cols = [col for col in result['data'] if col not in result['matching_columns']]
+                # Track removed columns
+                removed_columns.update(no_match_cols)
+                # Remove them from the data
+                for col in no_match_cols:
+                    if col in result['data']:
+                        del result['data'][col]
+                # Also remove from matching_columns if present
+                result['matching_columns'] = [col for col in result['matching_columns'] if col not in no_match_cols]
+            
+            # Generate clean response message
+            if removed_columns:
+                return [{
+                    'row_index': 0,
+                    'data': {
+                        'Result': 'Removed columns not matching search',
+                        'Columns': ', '.join(sorted(removed_columns))
+                    },
+                    'matching_columns': []
+                }] + search_results
+            else:
+                return [{
+                    'row_index': 0,
+                    'data': {
+                        'Result': 'No columns removed - all columns match search'
+                    },
+                    'matching_columns': []
+                }] + search_results
         return search_results
     except Exception as e:
         print(f"Error in manipulate_results: {e}")
@@ -1105,27 +1309,65 @@ def manipulate_table():
     html, _, total_pages = generate_table_html(search_results, page)
     return jsonify({"html": html, "total_pages": total_pages})
 
-@app.route('/export')
-def export():
-    query = session.get('last_query', '')
-    if not query:
-        return "No data to export", 400
+@app.route('/export', methods=['GET', 'POST'])
+def export_csv():
     csv_path = session.get('csv_path', DEFAULT_CSV_PATH)
+    if not csv_path:
+        return jsonify({'error': 'No CSV file selected'}), 400
     if not os.path.exists(csv_path):
-        return "CSV file not found", 400
-    search_results = chunk_search_csv(csv_path, query)
-    if not search_results:
-        return "No data to export", 400
-    data = [result['data'] for result in search_results]
-    df = pd.DataFrame(data)
+        return jsonify({'error': f'CSV file not found at path: {csv_path}'}), 400
+    
+    # Get current search results if available
+    current_results = session.get('search_results', session.get('current_results', []))
+    
+    if current_results:
+        # Export current view including combined columns
+        df = pd.DataFrame([r['data'] for r in current_results])
+        
+        # Apply column selections from session if they exist
+        if 'columns' in session and session['columns']:
+            available_columns = [col for col in session['columns'] if col in df.columns]
+            if available_columns:
+                df = df[available_columns]
+        # Include custom columns if they exist
+        if 'custom_columns' in session and session['custom_columns']:
+            for col_name, col_data in session['custom_columns'].items():
+                if col_name not in df.columns:
+                    df[col_name] = col_data
+        # Ensure original columns are preserved if no custom selections exist
+        elif 'original_columns' in session:
+            df = df[session['original_columns']]
+    else:
+        # Fall back to original CSV if no current results
+        df = load_csv_cached(csv_path)
+        
+        # Apply column selections from session if they exist
+        if 'columns' in session and session['columns']:
+            available_columns = [col for col in session['columns'] if col in df.columns]
+            if available_columns:
+                df = df[available_columns]
+        # Include custom columns if they exist
+        if 'custom_columns' in session and session['custom_columns']:
+            for col_name, col_data in session['custom_columns'].items():
+                if col_name not in df.columns:
+                    df[col_name] = col_data
+        # Ensure original columns are preserved if no custom selections exist
+        elif 'original_columns' in session:
+            df = df[session['original_columns']]
+    
+    if df.empty:
+        return jsonify({'error': 'No data to export'}), 400
+    
+    # Create output in memory
     output = io.StringIO()
     df.to_csv(output, index=False)
     output.seek(0)
+    
     return send_file(
         io.BytesIO(output.getvalue().encode('utf-8')),
         mimetype='text/csv',
         as_attachment=True,
-        download_name='exported_data.csv'
+        download_name=f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     )
 
 @app.route('/clear_chat_history')
