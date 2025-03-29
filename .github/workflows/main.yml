@@ -9,7 +9,7 @@ on:
     tags:
       - 'v*'
       - 'release'
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 jobs:
   build:
@@ -79,7 +79,7 @@ jobs:
             PYTHONUTF8=1 PYTHONIOENCODING=UTF-8 pyinstaller --onefile \
               --hidden-import=pandas \
               --hidden-import=Flask \
-              --hidden-import=Flask-Session \
+              --hidden-import=flask_session \
               --hidden-import=google \
               --hidden-import=google-auth \
               --hidden-import=google-auth-oauthlib \
