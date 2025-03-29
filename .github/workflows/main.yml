@@ -131,23 +131,18 @@ jobs:
           name: csv-tools-macos-latest
           path: releases/macos
 
-      - name: 📋 Debug Downloaded Files
+      - name: 📦 Package Build Artifacts
         run: |
-          echo "Windows artifacts:"
-          ls -la releases/windows || echo "No Windows files found"
-          echo "macOS artifacts:"
-          ls -la releases/macos || echo "No macOS files found"
-          if [ -z "$(ls -A releases/windows)" ] || [ -z "$(ls -A releases/macos)" ]; then
-            echo "Error: One or both artifact directories are empty"
-            exit 1
-          fi
+          mkdir -p releases/package
+          zip -r releases/package/csv-tools-${{ github.ref_name }}.zip releases/windows releases/macos
+          
+      - name: 📋 Debug Packaged Artifact
+        run: ls -la releases/package
 
       - name: 📦 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            releases/windows/*
-            releases/macos/*
+          files: releases/package/csv-tools-${{ github.ref_name }}.zip
           tag_name: ${{ github.ref_name }}
           name: CSV Tools ${{ github.ref_name }}
           body: |
@@ -156,7 +151,7 @@ jobs:
             - Windows (64-bit)
             - macOS
             ### Downloads
-            See attached files below.
+            See attached package below.
             ### Changes
             Automatically generated release notes follow below.
           draft: false
@@ -164,3 +159,4 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
